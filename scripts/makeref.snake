@@ -1,0 +1,38 @@
+
+# TODO
+# remove homology input requirement from fusion -DONE
+# merge master and dev -DONE
+# use index in the rules
+# write minimap2 indexing rule
+# design snakemake config
+# write all rule
+
+rule mkref:
+    input:
+        dna=config["dna_ref"],
+        cdna=config["cdna_ref"],
+        gtf=config["gtf"],
+    output:
+        cdna="{ref}/reference.cdna.fa.gz",
+        gtf="{ref}/1.gtf",
+    params:
+        dir=lambda wildcards: wildcards.ref[wildcards.ref.rfind("/")+1:],
+        options= "--keep-non-coding"
+    shell:
+        "./fusion mkref --force {params.options} --dna {input.dna} --cdna {input.cdna} --gtf {input.gtf} --output {params.dir}"
+rule cpy_dna:
+    input:
+        dna=config["dna_ref"],
+    output:
+        dna="{ref}/0.dna.fa.gz",
+    shell:
+        "gzip -c {input} > {output}"
+
+rule index_ref:
+    input:
+        "{ref}.fa.gz",
+    output:
+        "{ref}.3.14.mmi",
+    shell:
+        "minimap2 -x splice -k 12 -w 3 -d {output} {input}"
+
