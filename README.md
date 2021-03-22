@@ -68,6 +68,7 @@ Below is the list of the all the settings that you can set in your project.
 ### Input formatting in the config file
 Each input requires a fastq file and type. Type is used to configure parameters by the mapper.
 Following are the available types of input:
+
 |type   |   Technology                                  |
 |-------|-----------------------------------------------|
 |ccs    |   PacBio SMRT CCS reads: error rate 1%        |
