@@ -65,7 +65,7 @@ namespace reference{
     }
 
     std::string copy_gtf(std::string prefix, std::string gtf){
-        std::string new_gtf =  fmt::format("{}/0.gtf",prefix );
+        std::string new_gtf =  fmt::format("{}/1.gtf",prefix );
 
         std::string cmd;
         if(gtf.substr(gtf.find_last_of(".") +1) == "gz"){
