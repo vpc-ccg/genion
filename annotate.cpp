@@ -736,6 +736,60 @@ namespace annotate{
         }
         return directions;
     }
+
+    bool is_cluster_rt( const candidate_fusion &cf, double fin, double forw_rt_ex, double back_rt_ex,  int max_rt_distance = 50000, double max_fin = 0.1){
+        const candidate_read *read = NULL;
+        if( cf.forward.size() > 0){
+            read = &cf.forward[0];
+        }
+        else if( cf.backward.size()){
+            read = &cf.backward[0];
+        }
+        else if( cf.multi_first.size()){
+            read = &cf.multi_first[0];
+        }
+        else if( cf.no_first.size()){
+            read = &cf.no_first[0];
+        }
+        else{
+            return false;
+        }
+        //std::vector<std::pair<interval, exon> > blocks;
+    
+        if( read->blocks.size() < 2){
+            return false;
+        }
+        auto &blocks = read->blocks;
+        int i = 0;
+        for( i=1; i < blocks.size(); ++i){
+            if( blocks[i].second.gene_id != blocks[i-1].second.gene_id){
+                break;
+            }
+        }
+
+
+        auto b1 = blocks[i-1];
+        auto b2 = blocks[i];
+
+        if( b1.second.range.chr != b2.second.range.chr){
+            return false;
+        }
+        std::array<int, 4> positions {{ b1.second.range.start, b1.second.range.end,  b2.second.range.start, b2.second.range.end}};
+        std::sort(positions.begin(),positions.end());
+        int distance = positions[2] - positions[1];
+        if( distance > max_rt_distance){
+            return false;
+        }
+        if( forw_rt_ex > 0.25 || back_rt_ex > 0.25){
+            return false;
+        }
+        if( fin > max_fin){
+            return false;
+        }
+
+        return true;
+    }
+    
     int annotate_calls(int argc, char **argv){
         auto  opt = parse_args(argc, argv);
 
@@ -836,6 +890,8 @@ namespace annotate{
 
             double fin_score = genes.size() * total_count / (gene_count_sum+1);
 
+            double forward_rt_ex  =  1.0 * cand.second.fg_count / tcpflnz;
+            double backward_rt_ex = 1.0 * cand.second.lg_count / tcpflnz;
             std::string pass_fail_code = "";
             if(coding_flag){
                 pass_fail_code += ":noncoding";
@@ -857,18 +913,27 @@ namespace annotate{
                     + cand.second.multi_first.size() < min_support){
                 pass_fail_code += ":lowsup";
             }
-            if( pass_fail_code == ""){
-                pass_fail_code = "PASS";
+            if( pass_fail_code != ""){
+                pass_fail_code = "FAIL" + pass_fail_code;
             }
             else{
-                pass_fail_code = "FAIL" + pass_fail_code;
+
+                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex,50000, 0.1)){
+                    pass_fail_code = "PASS:RT";
+                }
+                else if (fin_score < 0.1){
+                    pass_fail_code = "FAIL:lowfin";
+                }
+                else{
+                    pass_fail_code = "PASS:GF";
+                }
             }
             
             //#FusionID(Ensembl) Forward-Support Backward-Support Multi-First-Exon No-First-Exon Genes-Overlap Segmental-Duplication-Count FusionName(Symbol) FiN-Score Pass-Fail-Status total-normal-count fusion-count normal-counts proper-normal-count proper-FiN-Score total-other-fusion-count other-fusion-counts ffigf-score proper-ffigf-score A B Anorm Bnorm 
             std::cout << cand.first << "\t" << cand.second.forward.size() << "\t"
                 << cand.second.backward.size()  << "\t" << cand.second.multi_first.size() << "\t" << cand.second.no_first.size()
                 << "\t" <<  cand.second.gene_overlaps.size() << "\t" <<  cand.second.duplications.size()
-                << "\t" << cand.second.name << "\t" << genes.size() * total_count / (gene_count_sum+1)
+                << "\t" << cand.second.name << "\t" << fin_score
                 << "\t" <<  pass_fail_code
                 << "\t" << gene_count_sum << "\t" << total_count <<  "\t"  << gene_count_string << "\t"
                 << total_count_putative_full_length << "\t" << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
