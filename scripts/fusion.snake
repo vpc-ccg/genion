@@ -1,0 +1,551 @@
+
+
+import sys
+
+timer_str = "module load time; gtime -v "
+#timer_str =""
+################# UTIL FUNCTIONS ################
+
+cfg_text = ""
+def tee( st, file=sys.stderr,end="\n"):
+    global cfg_text
+    cfg_text = cfg_text + st + end
+    print(st, file=file, end=end)
+
+def get_tool_path(name):
+    from shutil import which
+    return which(name)
+
+def assert_tool(tool):
+    tp = get_tool_path(tool)
+    assert tp is not None, tool + " not found in the PATH"
+    tee("Using {} from {}".format(tool,tp), file=sys.stderr)
+
+def cfg_default( key, val):
+    if key not in config:
+        config[key] = val
+    tee( "{}: {}".format(key,config[key]), file=sys.stderr)
+
+
+def cfg_mandatory( key):   
+    assert key in config, "{} is a mandatory field in config".format(key)
+    tee( "{}: {}".format(key,config[key]), file=sys.stderr)
+    
+def cfg_optional( key):
+    val = "[unset]"
+    if key in config:
+        val = config[key]
+    tee( "{}: {}".format(key,value), file=sys.stderr)
+
+################# UTIL FUNCTIONS ################
+
+no_gtf_bias = True
+
+tee("### RUN CONFIGURATION ###", file =sys.stderr)
+cfg_mandatory("path")
+cfg_mandatory("reference")
+cfg_mandatory("input")
+
+cfg_default("wg-aligner", "minimap2")
+cfg_default("rawdata-base","/raw-data")
+cfg_default("analysis-base","/analysis")
+cfg_default("results-base","/results")
+assert_tool("minimap2")
+assert_tool("lightgbm")
+cfg_default("minimap_threads", 63)
+
+
+cfg_default("raw-data", config["path"] + config["rawdata-base"])
+cfg_default("analysis", config["path"] + config["analysis-base"])
+cfg_default("results", config["path"] + config["results-base"])
+
+cfg_default("ext", "fastq.gz")
+ext  = config["ext"]
+tee("#########################", file =sys.stderr)
+
+
+path_names = {
+    "linkeddata"  : "linked-data",
+    "mapping"     : "mapping",
+    "fusion"      : "fusion",
+    "annot"      : "annotate",
+    "lgbm"        : "lgbm",
+    "cutting"     : "cutting",
+}
+
+index = 0
+for k,v in path_names.items():
+    path_names[k] = config["analysis"] + "/{:0>3d}-{}".format(index,v)
+    index+=1
+
+SCPA=config["SCPA"]
+
+onsuccess:
+    cfg_log_path = config["analysis"] + "/config.log"
+    with open(cfg_log_path, 'w') as hand:
+        print(cfg_text, file=hand)
+onerror:
+    cfg_log_path = config["analysis"] + "/config.log"
+    with open(cfg_log_path, 'w') as hand:
+        print(cfg_text, file=hand)
+
+
+def get_sample_name(wildcards):
+    assert wildcards.id in config["input"], "Sample {} not in config!".format(wildcards.id)
+    return config["input"][wildcards.id]["sample"]
+
+
+rule all_annot:
+    input:
+        expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
+def get_fq_name(wildcards):
+    fq_name = config["input"][wildcards.sample]["fastq"][0]
+    return config["raw-data"] +"/"+fq_name
+
+rule all_cut:
+    input:
+        expand( path_names["cutting"] + "/{sample}/candidate.cut.reads.fq" ,sample=config["input"].keys()),
+        expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
+
+
+
+
+
+rule all_basecounts:
+    input:
+        expand( path_names["mapping"] + "/{sample}.basecount" ,sample=config["input"].keys())
+
+
+
+
+
+
+
+rule all_counts:
+    input:
+        expand( path_names["fusion"] + "/{sample}/" ,sample=config["input"].keys())
+
+
+rule aligned_base_count:
+    input:
+        paf=path_names["mapping"]+"/{sample}.wg.final.paf",
+    output:
+        path_names["mapping"]+"/{sample}.basecount",
+    shell:
+        "cat {input.paf} |  grep tp:A:P | awk '{{sum+=$4-$3;}}END{{print sum;}}' > {output}"
+rule fix_chains:
+    input:
+        script="fix_chains.py",
+        reads=path_names["linkeddata"]+"/{sample}." + ext,
+        chains=path_names["fusion"] + "/{sample}/chains.txt",
+    output:
+        path_names["fusion"] + "/{sample}/chains.fixed.txt",  
+    shell:
+        "python {input.script} {input.reads} {input.chains} {output}"
+
+rule fusion_annotate:
+    input:
+        cands=path_names["fusion"] + "/{sample}/candidate-reads.list",
+        direction=path_names["annot"] + "/{sample}/candidate-reads.direction",
+        chains=path_names["fusion"] + "/{sample}/chains.fixed.txt",  
+    output:
+        path_names["annot"] + "/{sample}/annotation.tsv",
+    params:
+        directory=path_names["fusion"] + "/{sample}/",   
+        outdir=path_names["annot"] + "/{sample}/",   
+        dups=config["duplications"],   
+        ref=config["reference"],
+    benchmark:
+        path_names["annot"]+"/{sample}/benchmark.txt"
+    shell:
+        timer_str + "{SCPA}/fusion annotate -o {params.outdir} -i {params.directory} -r {params.ref} -d {params.dups} -q {input.direction} > {output}"
+
+rule make_tabular_reads:
+    input:
+        reads=path_names["linkeddata"]+"/{sample}." + ext,
+        cands=path_names["fusion"] + "/{sample}/candidate-reads.list",
+    output:
+        path_names["annot"] + "/{sample}/candidate-reads.tsv"
+    shell:
+        "python {SCPA}/fastq_to_tabular.py {input.reads} {input.cands} > {output}"
+
+rule find_read_directions:
+    input:
+        path_names["annot"] + "/{sample}/candidate-reads.tsv"
+    output:
+        path_names["annot"] + "/{sample}/candidate-reads.direction"
+    shell:
+        "python {SCPA}/find_read_directions.py {input} > {output}"
+
+rule cut_reads:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq", 
+        weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
+        index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
+    output:
+        fq=path_names["cutting"] + "/{sample}/candidate.cut.reads.fq", 
+    shell:
+        "python {SCPA}/lgbm/cut_reads.py {input.fq} {input.index} {input.weights} {output.fq}"
+
+
+rule run_lgbm_test:
+    input:
+        cfg=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
+    output:
+        weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
+    shell:
+        "lightgbm config={input.cfg}"
+
+
+rule create_lgbm_test_config:
+    input:
+        model=config["model"] if "model" in config else path_names["lgbm"] + "/{sample}/lgbm.model",
+        tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
+    output:
+        conf=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
+    params:
+        flank = 64,
+        output_path = lambda wildcards: path_names["lgbm"] + "/" + wildcards.sample + "/candidate.weights.tsv"
+    threads:
+        64        
+    run:
+        cfg = {
+            "task"                  : "predict",
+            "boosting_type"         : "gbdt",
+            "objective"             : "multiclass",
+            "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
+            "metric"                : "multi_logloss",
+            "num_class"             : 3,
+            "metric_freq"           : 1,
+            "is_training_metric"    : "true",
+            "max_bin"               : 255,
+            "data"                  : input.tsv,
+            "early_stopping"        : 10,
+            "num_trees"             : 100, 
+            "learning_rate"         : 0.05,
+            "num_leaves"            : 31,
+            "tree_learner"          : "data",
+            "input_model"           : input.model,
+            "num_threads"           : threads,
+            "output_result"         : params.output_path
+        }
+        
+        with open(output.conf, 'w') as hand:
+            for k,v in cfg.items():
+                print( "{} = {}\n".format(k,v), file=hand)
+
+
+rule train_lgbm:
+    input:
+        cfg=path_names["lgbm"] + "/{sample}/lgbm.train.conf",
+    output:
+        model=path_names["lgbm"] + "/{sample}/lgbm.model",
+    shell:
+        "lightgbm config={input.cfg}"
+
+rule create_lgbm_train_config:
+    input:
+        tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
+        valid_tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
+    output:
+        path_names["lgbm"] + "/{sample}/lgbm.train.conf",
+    params:
+        flank=64,
+        model_path=lambda wildcards:  path_names["lgbm"] +"/"+ wildcards.sample + "/lgbm.model",
+    threads:
+        64
+    run:
+        cfg = {
+            "task"                  : "train",
+            "boosting_type"         : "gbdt",
+            "objective"             : "multiclass",
+            "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
+            "metric"                : "multi_logloss",
+            "num_class"             : 3,
+            "metric_freq"           : 1,
+            "is_training_metric"    : "true",
+            "max_bin"               : 255,
+            "data"                  : input.tsv,
+            "valid_data"            : input.valid_tsv, #TODO
+            "early_stopping"        : 10,
+            "num_trees"             : 100, 
+            "learning_rate"         : 0.5,
+            "num_leaves"            : 31,
+            "tree_learner"          : "data",
+            "output_model"          : params.model_path, #TODO
+            "num_threads"           : threads
+        }
+        
+        with open(output[0], 'w') as hand:
+            for k,v in cfg.items():
+                print( "{} = {}\n".format(k,v), file=hand)
+
+
+rule prepare_lgbm_validate_tsv:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
+    output:
+        tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
+    shell:
+        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+
+rule prepare_lgbm_train_tsv:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
+    output:
+        tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
+    shell:
+        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+
+rule prepare_lgbm_candidate_tsv:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
+    output:
+        tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
+        index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
+    shell:
+        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type test --flank 64 --kmer_left_ratio 0.75"
+
+rule split_train_data:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
+    output:
+        train=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
+        valid=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
+    params:
+        validate_ratio = 0.1,
+        train_count = 160000,
+    run:
+        import random
+        random.seed(1071)
+        with open(input.fq, 'r') as ihand, open(output.train, 'w') as thand, open(output.valid, 'w') as vhand:
+            line = ihand.readline()
+            tc = 0
+            vc = 0
+            while line:
+                val = random.random()
+                if val < params.validate_ratio:
+                    file = vhand
+                    vc+=1
+                else:
+                    file = thand
+                    tc+=1
+                if tc > params.train_count:
+                    break
+                print(line.rstrip(),file=file)
+                for i in range(3):
+                    line = ihand.readline()
+                    print(line.rstrip(),file=file)
+                line = ihand.readline()
+                
+
+rule filter_train_reads:
+    input:
+        fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
+        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
+    output:
+        fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
+    shell:
+        "python {SCPA}/lgbm/find_reads_from_paf.py {input.fq} {input.paf} {output.fq}"
+
+rule find_good_train_aligs:
+    input:
+        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
+    output:
+        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
+    params:
+        min_identity= 0.9,
+    shell:
+        "python {SCPA}/lgbm/select_good_aligs.py gte {input.paf} {output.paf} -i {params.min_identity}"
+
+
+rule select_alignments_from_ids:
+    input:
+        ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
+        paf=path_names["mapping"]+"/{sample}.wg.final.paf",
+    output:
+        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
+    shell:
+        "python {SCPA}/lgbm/grab_paf_from_ids.py {input.ids} {input.paf} {output.paf}"
+
+rule get_train_reads_from_ids:
+    input:
+        ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
+        fq=get_fq_name,
+    output:
+        fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
+    shell:
+        "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
+
+rule get_candidate_reads_from_ids:
+    input:
+        ids=path_names["fusion"] + "/{sample}/candidate-reads.list",
+        fq=get_fq_name,
+    output:
+        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
+    shell:
+        "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
+
+rule find_fusion:
+    input:
+        #tpaf=path_names["mapping"]+"/{sample}.ts.paf",
+        gpaf=path_names["mapping"]+"/{sample}.wg.final.paf",
+        self_align=config["reference"]+"/reference.cdna.self.tsv",
+        binary = "{}/fusion".format(SCPA),
+    output:
+        chains=path_names["fusion"] + "/{sample}/chains.txt",
+        bad_ids=path_names["fusion"] + "/{sample}/candidate-reads.list",
+        lg=path_names["fusion"] + "/{sample}/run.log",
+        good_ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
+    params:
+        ref=config["reference"],
+        dir = lambda wildcards : path_names["fusion"]+"/"+ wildcards.sample,
+        mid = 120,
+    threads:
+        1
+    shell:
+        timer_str + "{input.binary} wg-filter --force --reference {params.ref} -g {input.gpaf} -s {input.self_align} -t {threads} -o {params.dir} 2> {output.lg}"
+        #"{SCPA}/fusion filter --force --reference {params.ref} -p {input.tpaf} -g {input.gpaf}  -s {input.self_align} --mid-filter {params.mid} -t {threads} -o {params.dir} 2> {output.lg}"
+
+def get_read_type(wildcards):
+    assert wildcards.id in config["input"], "Sample {} not in config!".format(wildcards.id)
+    return config["input"][wildcards.id]["type"]
+    
+
+if config["wg-aligner"] == "deSALT":
+    if no_gtf_bias:
+
+        rule maptowg_deSALT:
+            input:
+                index=config["reference"]+"/0.dna.deSALT.index/",
+                fastq=path_names["linkeddata"] + "/{id}." + ext,
+            output:
+                sam=path_names["mapping"]+"/{id}.wg.sam"
+            params:
+                p="-N 10",
+                typ=get_read_type,
+            threads:
+                48
+            benchmark:
+                path_names["mapping"]+"/{id}.benchmark.txt"
+            shell:
+                timer_str + "deSALT aln -x {params.typ} -f {output.sam}.tmp -t {threads} {params.p}  {input.index} {input.fastq} -o {output.sam}"
+        rule masked_maptowg_deSALT:
+            input:
+                index=config["reference"]+"/0.dna.deSALT.index/",
+                fastq=path_names["mapping"] + "/{id}.masked." + ext,
+            output:
+                sam=path_names["mapping"]+"/{id}.wg.masked.sam"
+            params:
+                p="-N 10",
+                typ=get_read_type,
+            threads:
+                48
+            benchmark:
+                path_names["mapping"]+"/{id}.masked.benchmark.txt"
+            shell:
+                timer_str + "deSALT aln -x {params.typ} -f {output.sam}.tmp -t {threads} {params.p}  {input.index} {input.fastq} -o {output.sam}"
+    else:
+        rule maptowg_deSALT:
+            input:
+                index=config["reference"]+"/0.dna.deSALT.index/",
+                fastq=path_names["linkeddata"] + "/{id}." + ext,
+                ginfo=config["reference"]+"/0.genome.info",
+            output:
+                sam=path_names["mapping"]+"/{id}.wg.sam"
+            params:
+                typ=get_read_type,
+            threads:
+                48
+            benchmark:
+                path_names["mapping"]+"{id}.benchmark.txt"
+            shell:
+                "deSALT aln -t {threads} -x {params.typ} -G {input.ginfo} {input.index} {input.fastq} -o {output.sam}"
+    rule samtopaf:
+        input:
+            "{sample}.sam"
+        output:
+            "{sample}.paf"
+        shell:
+            "paftools sam2paf -L {input} > {output}"
+    rule mask_mapped:
+        input:
+            paf=path_names["mapping"]+"/{id}.wg.paf",
+            fq =path_names["linkeddata"] + "/{id}." + ext,
+        output:
+            fq =path_names["mapping"]+"/{id}.masked." + ext,
+        params:
+            mintail=50,
+            minfront=120,
+        shell:
+            "python {SCPA}/saveclips.py  {input.fq} {input.paf} {output.fq} -t {params.mintail} -f {params.minfront}"
+    rule merge_pafs:
+        input:
+            p1=path_names["mapping"]+"/{id}.wg.paf",
+            p2=path_names["mapping"]+"/{id}.wg.masked.paf",
+        output:
+            p1=path_names["mapping"]+"/{id}.wg.final.paf",
+        shell:
+            "cat {input.p1} <(sed 's/\/[0-9]//' {input.p2}) | sort -k1,1 -k2,2 -k3n,3 -k4n,4 > {output}"
+
+    rule gtftogenomeinfo:
+        input:
+            config["reference"] + "/0.gtf",
+        output:
+            config["reference"] + "/0.genome.info",
+        shell:
+            "Annotation_Load.py {input} {output}"
+else:
+ rule maptowg:### USE INDEX
+        input:
+            path_names["linkeddata"]+"/{sample}." + ext,
+        output:
+            path_names["mapping"]+"/{sample}.wg.final.paf"
+        params:
+            ref=config["reference"]+"/0.dna.3.14.mmi",
+            opt="-c -y -x splice -k 12 -w 3 --hard-mask-level -N 100 "
+        threads:
+            64
+        shell:
+            "minimap2 {params.opt} -t {threads}  {params.ref}  {input} -o {output}"
+
+rule self_align:
+    input:    
+        "{sample}.fa.gz"
+    output:
+        "{sample}.self.paf"
+    threads:
+        64
+    shell:
+        "minimap2 {input} {input} -X -t {threads} -2 -c -o {output} "
+
+
+rule self_align_compute: 
+    input:
+        "{ref}.self.paf"
+    output:
+        "{ref}.self.tsv"
+    shell:
+        #"cat {input} | cut -f1,6 | sed 's/_/\t/g' | sed 's/\..//g' | awk '$1!=$3' | sort | uniq > {output}"
+        "cat {input} | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{{OFS=\"\\t\";}}{{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}}' | awk '$1!=$3' | sort | uniq > {output}"
+
+rule maptots:### USE INDEX
+    input:
+        path_names["linkeddata"]+"/{sample}." + ext,
+    output:
+        path_names["mapping"]+"/{sample}.ts.paf"
+    params:
+        ref=config["reference"]+"/reference.cdna.3.14.mmi",
+        opt="-c -y -x splice -k 12 -w 3 --hard-mask-level -N 100 "
+    threads:
+        64
+    shell:
+        "minimap2 {params.opt} -t {threads}  {params.ref}  {input} -o {output} "
+
+rule link_fq:
+    input:
+        get_fq_name
+    output:
+         path_names["linkeddata"]+"/{sample}." + ext,
+    shell:
+        "ln -s {input} {output}"
