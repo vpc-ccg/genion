@@ -7,5 +7,5 @@ SNAKEFILE=fusion.snake
 command -v snakemake && echo "... Exists :)" >&2 || { echo snakemake missing! >&2; FAILED=1; }
 
 if [ -z $FAILED ]; then 
-    snakemake -s "${SCRIPT_PATH}/fusion.snake" --config SCPA=${SCRIPT_PATH}  "$@";
+    snakemake -s "${SCRIPT_PATH}/${SNAKEFILE}" --config SCPA=${SCRIPT_PATH}  "$@";
 fi
