@@ -2,8 +2,8 @@
 
 import sys
 
-timer_str = "module load time; gtime -v "
-#timer_str =""
+
+timer_str =""
 ################# UTIL FUNCTIONS ################
 
 cfg_text = ""
