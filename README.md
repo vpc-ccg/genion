@@ -46,7 +46,7 @@ cdna_ref:
 gtf:
     Homo_sapiens.GRCh38.97.gtf
 ```
-All of these files can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html.
+All of these files can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
 
 ## Project Configuration
 In order to run Genion, you need to create a project configuration file namely ``config.yaml``. 
