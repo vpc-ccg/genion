@@ -46,7 +46,7 @@ cdna_ref:
 gtf:
     Homo_sapiens.GRCh38.97.gtf
 ```
-All of these files can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html.
+All of these files can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
 
 ## Project Configuration
 In order to run Genion, you need to create a project configuration file namely ``config.yaml``. 
@@ -100,3 +100,26 @@ input:
         fastq:
             - A_ont.fastq.gz
 ```
+
+# Simulated Dataset
+
+Simulated sequences are uploaded in 4 gzipped parts.
+simulation.reference.tar.gz contains reference of the simulated sequences in the simulation. Details are written in the README document.
+
+## Download
+Simulated gene fusion dataset can be downloaded from:
+https://figshare.com/articles/dataset/Simulated_RNA_Long_Reads_with_ONT_error_profile_and_gene_fusions_/14265554
+
+
+## Setup
+```bash
+zcat simulation.fastq.part00.gz  simulation.fastq.part01.gz  simulation.fastq.part02.gz  simulation.fastq.part03.gz > simulation.fastq
+tar xzvf simulation.reference.tar.gz 
+```
+
+
+
+
+
+
+
