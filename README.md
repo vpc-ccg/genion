@@ -100,3 +100,26 @@ input:
         fastq:
             - A_ont.fastq.gz
 ```
+
+# Simulated Dataset
+
+Simulated sequences are uploaded in 4 gzipped parts.
+simulation.reference.tar.gz contains reference of the simulated sequences in the simulation. Details are written in the README document.
+
+## Download
+Simulated gene fusion dataset can be downloaded from:
+https://figshare.com/articles/dataset/Simulated_RNA_Long_Reads_with_ONT_error_profile_and_gene_fusions_/14265554
+
+
+## Setup
+```bash
+zcat simulation.fastq.part00.gz  simulation.fastq.part01.gz  simulation.fastq.part02.gz  simulation.fastq.part03.gz > simulation.fastq
+tar xzvf simulation.reference.tar.gz 
+```
+
+
+
+
+
+
+
