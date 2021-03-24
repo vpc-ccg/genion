@@ -73,6 +73,7 @@ path_names = {
     "cutting"     : "cutting",
 }
 
+
 index = 0
 for k,v in path_names.items():
     path_names[k] = config["analysis"] + "/{:0>3d}-{}".format(index,v)
@@ -95,6 +96,10 @@ def get_sample_name(wildcards):
     return config["input"][wildcards.id]["sample"]
 
 
+rule all_results:
+    input:
+        expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys())
+        
 rule all_annot:
     input:
         expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
@@ -107,8 +112,49 @@ rule all_cut:
         expand( path_names["cutting"] + "/{sample}/candidate.cut.reads.fq" ,sample=config["input"].keys()),
         expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
 
+rule sort_and_copy_to_result:
+    input:
+        gf= path_names["annot"] + "/{sample}.fusions.tsv",
+        rt= path_names["annot"] + "/{sample}.read-through.tsv",
+        rp= path_names["annot"] + "/{sample}.fail.tsv",
+    output:
+        gf=config["results"] + "/{sample}.fusions.tsv",
+        rt=config["results"] + "/{sample}.read-through.tsv",
+        rp=config["results"] + "/{sample}.fail.tsv",
+    shell:
+        """body() {{
+            IFS= read -r header
+            printf '%s\n' "$header"
+            "$@"
+        }};"""
+        "cat {input.gf} | body sort -grk 3,4 > {output.gf} &&"
+        "cat {input.rt} | body sort -grk 3,4 > {output.rt} &&"
+        "cat {input.rp} | body sort -grk 3,4 > {output.rp} "
 
-
+rule lite_annot:
+    input:
+        path_names["annot"] + "/{sample}/annotation.tsv"
+    output:
+        gf= path_names["annot"] + "/{sample}.fusions.tsv",
+        rt= path_names["annot"] + "/{sample}.read-through.tsv",
+        rp= path_names["annot"] + "/{sample}.fail.tsv",
+    run:
+        
+        with open(input[0], 'r') as ihand,\
+             open(output.gf, 'w') as gfhand,\
+             open(output.rt, 'w') as rthand,\
+             open(output.rp, 'w') as rphand:
+            for hand in [gfhand, rthand, rphand]:
+                print("ID","SYMBOL","FFIGF","FiN","COUNT","PASSTAG",sep="\t",file=hand)
+            for line in ihand:
+                fields = line.rstrip().split("\t")
+                read_c = int(fields[1]) + int(fields[2]) + int(fields[3]) + int(fields[4])
+                if "PASS:GF" in fields[9]:
+                    print( fields[0],fields[7], fields[17], fields[8], read_c, fields[9], sep="\t", file=gfhand)
+                elif "PASS:RT" in fields[9]:
+                    print( fields[0],fields[7], fields[17], fields[8], read_c, fields[9], sep="\t", file=rthand)
+                else: 
+                    print( fields[0],fields[7], fields[17], fields[8], read_c, fields[9], sep="\t", file=rphand)
 
 
 rule all_basecounts:
@@ -388,7 +434,6 @@ rule get_candidate_reads_from_ids:
 
 rule find_fusion:
     input:
-        #tpaf=path_names["mapping"]+"/{sample}.ts.paf",
         gpaf=path_names["mapping"]+"/{sample}.wg.final.paf",
         self_align=config["reference"]+"/reference.cdna.self.tsv",
         binary = "{}/fusion".format(SCPA),
@@ -526,9 +571,10 @@ rule self_align_compute:
     output:
         "{ref}.self.tsv"
     shell:
-        #"cat {input} | cut -f1,6 | sed 's/_/\t/g' | sed 's/\..//g' | awk '$1!=$3' | sort | uniq > {output}"
         "cat {input} | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{{OFS=\"\\t\";}}{{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}}' | awk '$1!=$3' | sort | uniq > {output}"
 
+
+"""DEPRECATED
 rule maptots:### USE INDEX
     input:
         path_names["linkeddata"]+"/{sample}." + ext,
@@ -541,6 +587,7 @@ rule maptots:### USE INDEX
         64
     shell:
         "minimap2 {params.opt} -t {threads}  {params.ref}  {input} -o {output} "
+"""
 
 rule link_fq:
     input:
