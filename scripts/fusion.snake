@@ -181,7 +181,7 @@ rule aligned_base_count:
         "cat {input.paf} |  grep tp:A:P | awk '{{sum+=$4-$3;}}END{{print sum;}}' > {output}"
 rule fix_chains:
     input:
-        script="fix_chains.py",
+        script=SCPA+"/fix_chains.py",
         reads=path_names["linkeddata"]+"/{sample}." + ext,
         chains=path_names["fusion"] + "/{sample}/chains.txt",
     output:
@@ -194,6 +194,7 @@ rule fusion_annotate:
         cands=path_names["fusion"] + "/{sample}/candidate-reads.list",
         direction=path_names["annot"] + "/{sample}/candidate-reads.direction",
         chains=path_names["fusion"] + "/{sample}/chains.fixed.txt",  
+        binary = "{}/../fusion".format(SCPA),
     output:
         path_names["annot"] + "/{sample}/annotation.tsv",
     params:
@@ -204,7 +205,7 @@ rule fusion_annotate:
     benchmark:
         path_names["annot"]+"/{sample}/benchmark.txt"
     shell:
-        timer_str + "{SCPA}/fusion annotate -o {params.outdir} -i {params.directory} -r {params.ref} -d {params.dups} -q {input.direction} > {output}"
+        timer_str + "{input.binary} annotate -o {params.outdir} -i {params.directory} -r {params.ref} -d {params.dups} -q {input.direction} > {output}"
 
 rule make_tabular_reads:
     input:
@@ -436,7 +437,7 @@ rule find_fusion:
     input:
         gpaf=path_names["mapping"]+"/{sample}.wg.final.paf",
         self_align=config["reference"]+"/reference.cdna.self.tsv",
-        binary = "{}/fusion".format(SCPA),
+        binary = "{}/../fusion".format(SCPA),
     output:
         chains=path_names["fusion"] + "/{sample}/chains.txt",
         bad_ids=path_names["fusion"] + "/{sample}/candidate-reads.list",
