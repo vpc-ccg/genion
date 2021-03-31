@@ -16,6 +16,13 @@ def get_tool_path(name):
     from shutil import which
     return which(name)
 
+
+def assert_input_tool(tool):
+    tp = get_tool_path(tool)
+    assert tp is not None, tool + " not found in the PATH"
+    tee("Using {} from {}".format(tool,tp), file=sys.stderr)
+    return tp 
+
 def assert_tool(tool):
     tp = get_tool_path(tool)
     assert tp is not None, tool + " not found in the PATH"
@@ -51,7 +58,10 @@ cfg_default("rawdata-base","/raw-data")
 cfg_default("analysis-base","/analysis")
 cfg_default("results-base","/results")
 assert_tool("minimap2")
-assert_tool("lightgbm")
+assert_tool("paftools")
+assert_tool("deSALT")
+
+cfg_default("chimeric-correction", False)
 cfg_default("minimap_threads", 63)
 
 
@@ -95,6 +105,13 @@ def get_sample_name(wildcards):
     assert wildcards.id in config["input"], "Sample {} not in config!".format(wildcards.id)
     return config["input"][wildcards.id]["sample"]
 
+if "chimeric-correction" in config and config["chimeric-correction"] == True:
+    rule all_cut:
+        input:
+            expand( path_names["cutting"] + "/{sample}/candidate.cut.reads.fq" ,sample=config["input"].keys()),
+            expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys())
+            #expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
+
 
 rule all_results:
     input:
@@ -107,10 +124,6 @@ def get_fq_name(wildcards):
     fq_name = config["input"][wildcards.sample]["fastq"][0]
     return config["raw-data"] +"/"+fq_name
 
-rule all_cut:
-    input:
-        expand( path_names["cutting"] + "/{sample}/candidate.cut.reads.fq" ,sample=config["input"].keys()),
-        expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
 
 rule sort_and_copy_to_result:
     input:
@@ -223,215 +236,217 @@ rule find_read_directions:
         path_names["annot"] + "/{sample}/candidate-reads.direction"
     shell:
         "python {SCPA}/find_read_directions.py {input} > {output}"
-
-rule cut_reads:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq", 
-        weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
-        index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
-    output:
-        fq=path_names["cutting"] + "/{sample}/candidate.cut.reads.fq", 
-    shell:
-        "python {SCPA}/lgbm/cut_reads.py {input.fq} {input.index} {input.weights} {output.fq}"
-
-
-rule run_lgbm_test:
-    input:
-        cfg=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
-    output:
-        weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
-    shell:
-        "lightgbm config={input.cfg}"
+if "chimeric-correction" in config and config["chimeric-correction"] == True:
+    rule cut_reads:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq", 
+            weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
+            index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
+        output:
+            fq=path_names["cutting"] + "/{sample}/candidate.cut.reads.fq", 
+        shell:
+            "python {SCPA}/lgbm/cut_reads.py {input.fq} {input.index} {input.weights} {output.fq}"
 
 
-rule create_lgbm_test_config:
-    input:
-        model=config["model"] if "model" in config else path_names["lgbm"] + "/{sample}/lgbm.model",
-        tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
-    output:
-        conf=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
-    params:
-        flank = 64,
-        output_path = lambda wildcards: path_names["lgbm"] + "/" + wildcards.sample + "/candidate.weights.tsv"
-    threads:
-        64        
-    run:
-        cfg = {
-            "task"                  : "predict",
-            "boosting_type"         : "gbdt",
-            "objective"             : "multiclass",
-            "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
-            "metric"                : "multi_logloss",
-            "num_class"             : 3,
-            "metric_freq"           : 1,
-            "is_training_metric"    : "true",
-            "max_bin"               : 255,
-            "data"                  : input.tsv,
-            "early_stopping"        : 10,
-            "num_trees"             : 100, 
-            "learning_rate"         : 0.05,
-            "num_leaves"            : 31,
-            "tree_learner"          : "data",
-            "input_model"           : input.model,
-            "num_threads"           : threads,
-            "output_result"         : params.output_path
-        }
-        
-        with open(output.conf, 'w') as hand:
-            for k,v in cfg.items():
-                print( "{} = {}\n".format(k,v), file=hand)
+    rule run_lgbm_test:
+        input:
+            binary=assert_input_tool("lightgbm"),
+            cfg=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
+        output:
+            weights=path_names["lgbm"] + "/{sample}/candidate.weights.tsv",
+        shell:
+            "{input.binary} config={input.cfg}"
 
 
-rule train_lgbm:
-    input:
-        cfg=path_names["lgbm"] + "/{sample}/lgbm.train.conf",
-    output:
-        model=path_names["lgbm"] + "/{sample}/lgbm.model",
-    shell:
-        "lightgbm config={input.cfg}"
-
-rule create_lgbm_train_config:
-    input:
-        tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
-        valid_tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
-    output:
-        path_names["lgbm"] + "/{sample}/lgbm.train.conf",
-    params:
-        flank=64,
-        model_path=lambda wildcards:  path_names["lgbm"] +"/"+ wildcards.sample + "/lgbm.model",
-    threads:
-        64
-    run:
-        cfg = {
-            "task"                  : "train",
-            "boosting_type"         : "gbdt",
-            "objective"             : "multiclass",
-            "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
-            "metric"                : "multi_logloss",
-            "num_class"             : 3,
-            "metric_freq"           : 1,
-            "is_training_metric"    : "true",
-            "max_bin"               : 255,
-            "data"                  : input.tsv,
-            "valid_data"            : input.valid_tsv, #TODO
-            "early_stopping"        : 10,
-            "num_trees"             : 100, 
-            "learning_rate"         : 0.5,
-            "num_leaves"            : 31,
-            "tree_learner"          : "data",
-            "output_model"          : params.model_path, #TODO
-            "num_threads"           : threads
-        }
-        
-        with open(output[0], 'w') as hand:
-            for k,v in cfg.items():
-                print( "{} = {}\n".format(k,v), file=hand)
+    rule create_lgbm_test_config:
+        input:
+            model=config["model"] if "model" in config else path_names["lgbm"] + "/{sample}/lgbm.model",
+            tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
+        output:
+            conf=path_names["lgbm"] + "/{sample}/lgbm.test.conf",
+        params:
+            flank = 64,
+            output_path = lambda wildcards: path_names["lgbm"] + "/" + wildcards.sample + "/candidate.weights.tsv"
+        threads:
+            64        
+        run:
+            cfg = {
+                "task"                  : "predict",
+                "boosting_type"         : "gbdt",
+                "objective"             : "multiclass",
+                "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
+                "metric"                : "multi_logloss",
+                "num_class"             : 3,
+                "metric_freq"           : 1,
+                "is_training_metric"    : "true",
+                "max_bin"               : 255,
+                "data"                  : input.tsv,
+                "early_stopping"        : 10,
+                "num_trees"             : 100, 
+                "learning_rate"         : 0.05,
+                "num_leaves"            : 31,
+                "tree_learner"          : "data",
+                "input_model"           : input.model,
+                "num_threads"           : threads,
+                "output_result"         : params.output_path
+            }
+            
+            with open(output.conf, 'w') as hand:
+                for k,v in cfg.items():
+                    print( "{} = {}\n".format(k,v), file=hand)
 
 
-rule prepare_lgbm_validate_tsv:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
-    output:
-        tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
-    shell:
-        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+    rule train_lgbm:
+        input:
+            binary=assert_input_tool("lightgbm"),
+            cfg=path_names["lgbm"] + "/{sample}/lgbm.train.conf",
+        output:
+            model=path_names["lgbm"] + "/{sample}/lgbm.model",
+        shell:
+            "{input.binary} config={input.cfg}"
 
-rule prepare_lgbm_train_tsv:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
-    output:
-        tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
-    shell:
-        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+    rule create_lgbm_train_config:
+        input:
+            tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
+            valid_tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
+        output:
+            path_names["lgbm"] + "/{sample}/lgbm.train.conf",
+        params:
+            flank=64,
+            model_path=lambda wildcards:  path_names["lgbm"] +"/"+ wildcards.sample + "/lgbm.model",
+        threads:
+            64
+        run:
+            cfg = {
+                "task"                  : "train",
+                "boosting_type"         : "gbdt",
+                "objective"             : "multiclass",
+                "categorical_feature"   : ",".join([str(i) for i in range(params.flank)]),
+                "metric"                : "multi_logloss",
+                "num_class"             : 3,
+                "metric_freq"           : 1,
+                "is_training_metric"    : "true",
+                "max_bin"               : 255,
+                "data"                  : input.tsv,
+                "valid_data"            : input.valid_tsv, #TODO
+                "early_stopping"        : 10,
+                "num_trees"             : 100, 
+                "learning_rate"         : 0.5,
+                "num_leaves"            : 31,
+                "tree_learner"          : "data",
+                "output_model"          : params.model_path, #TODO
+                "num_threads"           : threads
+            }
+            
+            with open(output[0], 'w') as hand:
+                for k,v in cfg.items():
+                    print( "{} = {}\n".format(k,v), file=hand)
 
-rule prepare_lgbm_candidate_tsv:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
-    output:
-        tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
-        index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
-    shell:
-        "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type test --flank 64 --kmer_left_ratio 0.75"
 
-rule split_train_data:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
-    output:
-        train=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
-        valid=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
-    params:
-        validate_ratio = 0.1,
-        train_count = 160000,
-    run:
-        import random
-        random.seed(1071)
-        with open(input.fq, 'r') as ihand, open(output.train, 'w') as thand, open(output.valid, 'w') as vhand:
-            line = ihand.readline()
-            tc = 0
-            vc = 0
-            while line:
-                val = random.random()
-                if val < params.validate_ratio:
-                    file = vhand
-                    vc+=1
-                else:
-                    file = thand
-                    tc+=1
-                if tc > params.train_count:
-                    break
-                print(line.rstrip(),file=file)
-                for i in range(3):
-                    line = ihand.readline()
-                    print(line.rstrip(),file=file)
+    rule prepare_lgbm_validate_tsv:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
+        output:
+            tsv=path_names["lgbm"] + "/{sample}/validate.filtered.reads.tsv",
+        shell:
+            "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+
+    rule prepare_lgbm_train_tsv:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
+        output:
+            tsv=path_names["lgbm"] + "/{sample}/train.filtered.reads.tsv",
+        shell:
+            "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type train --flank 64 --kmer_left_ratio 0.75"
+
+    rule prepare_lgbm_candidate_tsv:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
+        output:
+            tsv=path_names["lgbm"] + "/{sample}/candidate.reads.tsv",
+            index=path_names["lgbm"] + "/{sample}/candidate.reads.tsv.index",
+        shell:
+            "python {SCPA}/lgbm/prepare_data.py {input.fq} {output.tsv} --type test --flank 64 --kmer_left_ratio 0.75"
+
+    rule split_train_data:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
+        output:
+            train=path_names["lgbm"] + "/{sample}/train.filtered.reads.fq",
+            valid=path_names["lgbm"] + "/{sample}/validate.filtered.reads.fq",
+        params:
+            validate_ratio = 0.1,
+            train_count = 160000,
+        run:
+            import random
+            random.seed(1071)
+            with open(input.fq, 'r') as ihand, open(output.train, 'w') as thand, open(output.valid, 'w') as vhand:
                 line = ihand.readline()
-                
+                tc = 0
+                vc = 0
+                while line:
+                    val = random.random()
+                    if val < params.validate_ratio:
+                        file = vhand
+                        vc+=1
+                    else:
+                        file = thand
+                        tc+=1
+                    if tc > params.train_count:
+                        break
+                    print(line.rstrip(),file=file)
+                    for i in range(3):
+                        line = ihand.readline()
+                        print(line.rstrip(),file=file)
+                    line = ihand.readline()
+                    
 
-rule filter_train_reads:
-    input:
-        fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
-        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
-    output:
-        fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
-    shell:
-        "python {SCPA}/lgbm/find_reads_from_paf.py {input.fq} {input.paf} {output.fq}"
+    rule filter_train_reads:
+        input:
+            fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
+            paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
+        output:
+            fq=path_names["lgbm"] + "/{sample}/train-validate.filtered.reads.fq",
+        shell:
+            "python {SCPA}/lgbm/find_reads_from_paf.py {input.fq} {input.paf} {output.fq}"
 
-rule find_good_train_aligs:
-    input:
-        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
-    output:
-        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
-    params:
-        min_identity= 0.9,
-    shell:
-        "python {SCPA}/lgbm/select_good_aligs.py gte {input.paf} {output.paf} -i {params.min_identity}"
+    rule find_good_train_aligs:
+        input:
+            paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
+        output:
+            paf=path_names["lgbm"] + "/{sample}/train-validate.reads.good.paf",
+        params:
+            min_identity= 0.9,
+        shell:
+            "python {SCPA}/lgbm/select_good_aligs.py gte {input.paf} {output.paf} -i {params.min_identity}"
 
 
-rule select_alignments_from_ids:
-    input:
-        ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
-        paf=path_names["mapping"]+"/{sample}.wg.final.paf",
-    output:
-        paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
-    shell:
-        "python {SCPA}/lgbm/grab_paf_from_ids.py {input.ids} {input.paf} {output.paf}"
+    rule select_alignments_from_ids:
+        input:
+            ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
+            paf=path_names["mapping"]+"/{sample}.wg.final.paf",
+        output:
+            paf=path_names["lgbm"] + "/{sample}/train-validate.reads.paf",
+        shell:
+            "python {SCPA}/lgbm/grab_paf_from_ids.py {input.ids} {input.paf} {output.paf}"
 
-rule get_train_reads_from_ids:
-    input:
-        ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
-        fq=get_fq_name,
-    output:
-        fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
-    shell:
-        "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
+    rule get_train_reads_from_ids:
+        input:
+            ids=path_names["fusion"] + "/{sample}/00-transcriptome-primary-alignment-count-filter-reads.list",
+            fq=get_fq_name,
+        output:
+            fq=path_names["lgbm"] + "/{sample}/train-validate.reads.fq",
+        shell:
+            "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
 
-rule get_candidate_reads_from_ids:
-    input:
-        ids=path_names["fusion"] + "/{sample}/candidate-reads.list",
-        fq=get_fq_name,
-    output:
-        fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
-    shell:
-        "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
+    rule get_candidate_reads_from_ids:
+        input:
+            ids=path_names["fusion"] + "/{sample}/candidate-reads.list",
+            fq=get_fq_name,
+        output:
+            fq=path_names["lgbm"] + "/{sample}/candidate.reads.fq",
+        shell:
+            "python {SCPA}/lgbm/grab_reads_from_ids.py {input.ids} {input.fq} {output}"
 
 rule find_fusion:
     input:

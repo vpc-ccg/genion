@@ -64,7 +64,8 @@ Below is the list of the all the settings that you can set in your project.
 | analysis-base                | Optional  | Location of intermediate files relative to ``path``. default: ``{path}/analysis``|
 | results-base                 | Optional  | Location of final results relative to the ``path``. default: ``{path}/results``  |
 | wg-aligner                   | Optional  | Mapper to use (``deSALT``, ``minimap2``) default: ``deSALT``                                                                      |
-| ext                          | Optinal   | extension of the fastq files used in input (``fastq``,``fastq.gz``,``fq``,``fq.gz``) default:``fastq`` |
+| ext                          | Optional   | extension of the fastq files used in input (``fastq``,``fastq.gz``,``fq``,``fq.gz``) default:``fastq`` |
+| chimeric-correction          | Optional   | If True, run lightgbm chimeric read correction on reads in chimeric clusters default: False |
 
 ### Input formatting in the config file
 Each input requires a fastq file and type. Type is used to configure parameters by the mapper.
