@@ -7,7 +7,7 @@
 # design snakemake config
 # write all rule
 
-
+SCPA = config["SCPA"]
 
 rule all:
     input:
@@ -30,7 +30,7 @@ rule mkref:
         dir=lambda wildcards: wildcards.ref,
         options= "--keep-non-coding"
     shell:
-        "./fusion mkref --force {params.options} --dna {input.dna} --cdna {input.cdna} --gtf {input.gtf} --output {params.dir}"
+        SCPA + "/../fusion mkref --force {params.options} --dna {input.dna} --cdna {input.cdna} --gtf {input.gtf} --output {params.dir}"
 
 rule cpy_dna:
     input:
