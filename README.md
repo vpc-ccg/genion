@@ -4,7 +4,7 @@
 
 ## Installation from Source
 ```bash
-git clone git@bitbucket.org:CharlesTaylor/genion.git
+git clone git@bitbucket.org:f0t1h/genion.git
 cd genion
 make
 ```
@@ -12,15 +12,15 @@ make
 ## Prerequisites
 
 
-Dependencies | Version 
--------- |-----|
-Python   | 3.x |
-c++ | std++17 |
-[deSALT](https://github.com/ydLiu-HIT/deSALT) | >= 1.5.5 |
-[minimap2](https://github.com/lh3/minimap2/tree/master/misc) | >= 2.17 |
-[paftools](https://github.com/lh3/minimap2/tree/master/misc) |  |
-[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
-[lightgbm*](https://lightgbm.readthedocs.io/en/latest/) | >= 2.3.2 |
+|Dependencies | Version |
+|-------- |-----|
+|Python   | 3.x |
+|c++ | std++17 |
+|[deSALT](https://github.com/ydLiu-HIT/deSALT) | >= 1.5.5 |
+|[minimap2](https://github.com/lh3/minimap2/tree/master/misc) | >= 2.17 |
+|[paftools](https://github.com/lh3/minimap2/tree/master/misc) |  |
+|[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
+|[lightgbm*](https://lightgbm.readthedocs.io/en/latest/) | >= 2.3.2 |
 
 lightgbm is required for optional chimeric read correction step.
 
