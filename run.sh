@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 #SCRIPT_PATH="$(dirname `which $0`)/scripts"
-SCRIPT_PATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+SCRIPT_PATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )/scripts"
 echo $SCRIPT_PATH
 SNAKEFILE=fusion.snake
 #Checking if tools exist
