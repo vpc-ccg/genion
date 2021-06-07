@@ -81,6 +81,7 @@ path_names = {
     "annot"      : "annotate",
     "lgbm"        : "lgbm",
     "cutting"     : "cutting",
+    "plots"     : "plots",
 }
 
 
@@ -117,6 +118,10 @@ rule all_results:
     input:
         expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys())
         
+rule all_plots:
+    input:
+        expand(path_names["plots"] + "/{sample}/ffigf_fin.png",sample=config["input"].keys())
+
 rule all_annot:
     input:
         expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
@@ -143,6 +148,15 @@ rule sort_and_copy_to_result:
         "cat {input.gf} | body sort -grk 3,4 > {output.gf} &&"
         "cat {input.rt} | body sort -grk 3,4 > {output.rt} &&"
         "cat {input.rp} | body sort -grk 3,4 > {output.rp} "
+
+rule plot_ffigf:
+    input:
+        annot=path_names["annot"] + "/{sample}/annotation.tsv",
+        script=SCPA+"/plot_fin.py",
+    output:
+        figure=path_names["plots"] + "/{sample}/ffigf_fin.png",
+    shell:
+        "python {input.script} {input.annot} {output.figure} {wildcards.sample}" 
 
 rule lite_annot:
     input:
