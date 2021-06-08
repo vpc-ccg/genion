@@ -386,6 +386,61 @@ namespace annotate{
         
         fusion_manager() {}
 
+        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot){
+
+
+            std::set<std::string> gene_ids;
+            std::map<std::string,int> gene_order;
+            std::set<std::string> transcript_ids;
+
+            int index = 0;
+            for(auto i_and_e : read.blocks){
+                auto ite = gene_ids.find(i_and_e.second.gene_id);
+                if(ite == gene_ids.end()){
+                    gene_order[i_and_e.second.gene_id] = index;
+                    ++index;
+                }
+                gene_ids.insert(i_and_e.second.gene_id);
+
+                if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
+                    std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
+                }
+            }
+            
+            std::string fusion_name = "";
+            for(const std::string &id : gene_ids){
+                fusion_name += gene_annot.find(id)->second.gene_name + "::";
+            }
+
+            fusion_name.pop_back();
+            fusion_name.pop_back();
+
+            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
+
+            for( std::string gid : gene_ids){
+                gene_counts[gid]+=1;
+            }
+            auto &cand = fusions[fusion_id];
+
+            cand.name = fusion_name;
+            int last_first = - 1;
+            if(read.first_exons.size() > 1){
+                cand.multi_first.push_back(read);
+                return;
+            }
+            if(read.first_exons.size() == 0){
+                cand.no_first.push_back(read);
+                return;
+            }
+            last_first = read.first_exons.back();
+            if(read.blocks[last_first].second.gene_id == *(gene_ids.rbegin())){
+                cand.forward.push_back(read);
+            }
+            else{
+                cand.backward.push_back(read);
+            }
+        }
+
         void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
                 std::unordered_map<std::string, int> &last_exons,
                 std::unordered_map<std::string, SEQDIR> &directions){
@@ -760,7 +815,7 @@ namespace annotate{
             return false;
         }
         auto &blocks = read->blocks;
-        int i = 0;
+        size_t i = 0;
         for( i=1; i < blocks.size(); ++i){
             if( blocks[i].second.gene_id != blocks[i-1].second.gene_id){
                 break;
@@ -806,7 +861,7 @@ namespace annotate{
         
         std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);
 
-        std::unordered_map<std::string, SEQDIR> read_directions = read_read_directions(opt["read_dir"].as<std::string>());
+        //std::unordered_map<std::string, SEQDIR> read_directions = read_read_directions(opt["read_dir"].as<std::string>());
 
         std::string chains_path = input_prefix + "/chains.fixed.txt";
         std::string candidate_path = input_prefix + "/candidate-reads.list";
@@ -830,7 +885,9 @@ namespace annotate{
         chain_file.close();
         fusion_manager fm;
         for( auto &cand : candidates){
-            fm.add_read(cand, gene_annot, last_exons, read_directions);
+
+            fm.add_read(cand, gene_annot);
+            //fm.add_read(cand, gene_annot, last_exons, read_directions);
         }
         
         annotate_duplications_and_overlaps(fm, gene_annot, opt["duplications"].as<std::string>());
