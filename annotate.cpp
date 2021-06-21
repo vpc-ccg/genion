@@ -235,7 +235,6 @@ namespace annotate{
                 bool reverse = block.first.reverse_strand;
                 auto loci = block.first.as_loci();
                 
-                    //std::cerr << "RT\t" << reverse << "\n";
                 auto gene_ptr  = bps.find(gene_id);
                 if ( gene_ptr == bps.end()){
                     if(reverse != is_first){
@@ -274,20 +273,6 @@ namespace annotate{
 
                         }
                     }
-
-                    
-                   /* 
-                    if(reverse == is_first){
-                        if(pos > loci.first.position){
-                            bps[gene_id] = loci.first;
-                        }
-                    }
-                    else{
-                        if(pos < loci.second.position){
-                            bps[gene_id] = loci.second;
-                        }
-                    }
-*/
                 }
             }
 
@@ -295,7 +280,7 @@ namespace annotate{
         }
         void add_block(const std::string &line){
             std::vector<std::string> fields = rsplit(line, "\t");
-//        154633180       154633212       X       60      92      1       X       154632470       154633182       ENSG00000272681 ENST00000598177 1
+
             int start = stoi(fields[1]);
             int end   = stoi(fields[2]);
             std::string chr = fields[3];
@@ -387,7 +372,8 @@ namespace annotate{
         
         fusion_manager() {}
 
-        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot){
+        void add_read(const candidate_read &read,
+                const std::unordered_map<std::string, gene> &gene_annot){
 
 
             std::set<std::string> gene_ids;
@@ -416,7 +402,9 @@ namespace annotate{
             fusion_name.pop_back();
             fusion_name.pop_back();
 
-            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
+            std::string fusion_id = std::accumulate( 
+                    std::next(std::begin(gene_ids)),
+                    std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
 
             for( std::string gid : gene_ids){
                 gene_counts[gid]+=1;
@@ -442,7 +430,8 @@ namespace annotate{
             }
         }
 
-        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
+        void add_read(const candidate_read &read,
+                const std::unordered_map<std::string, gene> &gene_annot,
                 std::unordered_map<std::string, int> &last_exons,
                 std::unordered_map<std::string, SEQDIR> &directions){
 
@@ -464,8 +453,6 @@ namespace annotate{
                 if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
                     std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
                 }
-//                std::cerr << gene_annot.find(i_and_e.second.gene_id)->second.gene_name << std::endl;
-            
             }
             bool first_good = true;
             bool last_good = true;
@@ -498,7 +485,6 @@ namespace annotate{
                         if( i_and_e.second.exon_no >= last_exon - 1){
                             first_good = false;
                         }
-
                     }
 
                 }else{
@@ -508,9 +494,6 @@ namespace annotate{
          
             }
 
-             
-  //          std::cerr << "\n";
-            
             std::string fusion_name = "";
             for(const std::string &id : gene_ids){
                 fusion_name += gene_annot.find(id)->second.gene_name + "::";
@@ -519,7 +502,9 @@ namespace annotate{
             fusion_name.pop_back();
             fusion_name.pop_back();
 
-            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
+            std::string fusion_id = std::accumulate( 
+                    std::next(std::begin(gene_ids)), std::end(gene_ids),
+                    *(std::begin(gene_ids)), dash_fold);
 
             for( std::string gid : gene_ids){
                 gene_counts[gid]+=1;
@@ -535,12 +520,12 @@ namespace annotate{
             int last_first = - 1;
             if(read.first_exons.size() > 1){
                 cand.multi_first.push_back(read);
-//                std::cerr << "Multiple first " << fusion_id << "\n";
+
                 return;
             }
             if(read.first_exons.size() == 0){
                 cand.no_first.push_back(read);
-//                std::cerr << "No first " << fusion_id << "\n";
+
                 return;
             }
             last_first = read.first_exons.back();
@@ -650,9 +635,10 @@ namespace annotate{
             }
         }
         gtf_file.close();
-//        std::cerr << "Read " << int_map.size() << " transcript annotations" << std::endl;
+
         return int_map;
     }
+
     template<class K, class V,template<class,class> class MAP>
     std::vector<std::pair<K, K>> get_key_pairs( const MAP<K,V> &map){
         std::vector<std::pair<K,K>> pairs;
@@ -683,13 +669,13 @@ namespace annotate{
             }
         }
         gtf_file.close();
-//        std::cerr << "Read " << valid_set.size() << " gene annotations" << std::endl;
+
         return valid_set;
     }
 
-
-
-    void annotate_duplications_and_overlaps(fusion_manager &fm, const std::unordered_map<std::string, gene> &gene_annot, const std::string &dup_path){
+    void annotate_duplications_and_overlaps(fusion_manager &fm,
+            const std::unordered_map<std::string, gene> &gene_annot,
+            const std::string &dup_path){
 
         IITree<locus, std::tuple<std::string, int, int, double> > duplications = read_duplication_annotation(dup_path);;
         std::vector< size_t> overlaps;
@@ -705,13 +691,10 @@ namespace annotate{
                 const interval &i = (ivals.find(f))->second;
                 const auto loci = i.as_loci();
 
-               // std::cerr << loci.first.chr << "\t" << loci.first.position << "\t" << loci.second.chr << "\t" << loci.second.position << "\t" << f << "\t" << s << "\n";
-
                 duplications.overlap(loci.first,loci.second, overlaps);
 
                 for(size_t d : overlaps){
                     const auto &dup = duplications.data(d);
-//                    std::cerr << std::get<0>(dup) << "\t" <<  std::get<1>(dup) << "\t" << std::get<2>(dup) << "\n";
                     interval l(std::get<0>(dup), std::get<1>(dup), std::get<2>(dup), 0);
                     interval &r =( ivals.find(s))->second; 
                     if(l.overlaps(r)){
@@ -770,6 +753,7 @@ namespace annotate{
 
 
     std::unordered_map<std::string, SEQDIR>  read_read_directions(const std::string &path){
+        
         std::unordered_map<std::string, SEQDIR> directions; 
         std::ifstream dir_file(path);
         std::string line;
@@ -793,7 +777,10 @@ namespace annotate{
         return directions;
     }
 
-    bool is_cluster_rt( const candidate_fusion &cf, double fin, double forw_rt_ex, double back_rt_ex,  int max_rt_distance = 50000, double max_fin = 0.1){
+    bool is_cluster_rt( const candidate_fusion &cf, double fin,
+            double forw_rt_ex, double back_rt_ex,
+            int max_rt_distance = 50000, double max_fin = 0.1){
+        
         const candidate_read *read = NULL;
         if( cf.forward.size() > 0){
             read = &cf.forward[0];
@@ -822,7 +809,6 @@ namespace annotate{
                 break;
             }
         }
-
 
         auto b1 = blocks[i-1];
         auto b2 = blocks[i];
@@ -899,8 +885,12 @@ namespace annotate{
 
         for( const auto &cand : fm.fusions){
 
-            int total_count = cand.second.forward.size() + cand.second.backward.size() + cand.second.multi_first.size() + cand.second.no_first.size();
-            int total_count_putative_full_length = cand.second.forward.size() + cand.second.backward.size();
+            int total_count = cand.second.forward.size() 
+                + cand.second.backward.size() 
+                + cand.second.multi_first.size() 
+                + cand.second.no_first.size();
+            int total_count_putative_full_length = cand.second.forward.size() 
+                + cand.second.backward.size();
             std::vector<std::string> genes = rsplit(cand.first,"::");
 
             bool coding_flag = false;
