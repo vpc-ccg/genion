@@ -1,7 +1,7 @@
 
 CXX      ?= g++
 OPT ?= -O2
-CXXFLAGS  = ${OPT}  -std=c++17 -lstdc++fs   -pg -g  -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib $(LDFLAGS)
+CXXFLAGS  = ${OPT}  -std=c++17 -lstdc++fs   -pg -g  -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest $(LDFLAGS)
 LDFLAGS   +=  -lz -lstdc++fs 
 #-fopenmp -lpthread
 SOURCES   = main.cpp paf.cpp filters.cpp format.cpp cluster.cpp reference.cpp util.cpp chainchain.cpp cigar.cpp annotate.cpp

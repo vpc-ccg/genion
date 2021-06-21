@@ -19,6 +19,7 @@
 #include "annotate.h"
 #include "locus.h"
 #include "util.h"
+#include <stats/stattest.h>
 
 #include <iostream>
 namespace annotate{
