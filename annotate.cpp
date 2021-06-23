@@ -375,10 +375,9 @@ namespace annotate{
 
         
         fusion_manager() {}
+        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
+            const std::unordered_map<std::string, int> &exon_counts){
 
-        void add_read(const candidate_read &read,
-                const std::unordered_map<std::string, gene> &gene_annot,
-                const std::unordered_map<std::string, int> &exon_counts){
 
             std::set<std::string> gene_ids;
             std::map<std::string,int> gene_order;   //use
@@ -408,114 +407,19 @@ namespace annotate{
             fusion_name.pop_back();
             fusion_name.pop_back();
 
-            std::string fusion_id = std::accumulate( 
-                    std::next(std::begin(gene_ids)),
-                    std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
+            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
 
             for( std::string gid : gene_ids){
                 gene_counts[gid]+=1;
             }
             auto &cand = fusions[fusion_id];
 
-            cand.name = fusion_name;
-            int last_first = - 1;
-            if(read.first_exons.size() > 1){
-                cand.multi_first.push_back(read);
-                return;
-            }
-            if(read.first_exons.size() == 0){
-                cand.no_first.push_back(read);
-                return;
-            }
-            last_first = read.first_exons.back();
-            if(read.blocks[last_first].second.gene_id == *(gene_ids.rbegin())){
-                cand.forward.push_back(read);
-            }
-            else{
-                cand.backward.push_back(read);
-            }
-        }
-
-        void add_read(const candidate_read &read,
-                const std::unordered_map<std::string, gene> &gene_annot,
-                std::unordered_map<std::string, int> &last_exons,
-                std::unordered_map<std::string, SEQDIR> &directions){
-
-
-            std::set<std::string> gene_ids;
-            std::map<std::string,int> gene_order;
-            std::set<std::string> transcript_ids;
-
-            SEQDIR dir = directions[read.read_id];
-            int index = 0;
-            for(auto i_and_e : read.blocks){
-                auto ite = gene_ids.find(i_and_e.second.gene_id);
-                if(ite == gene_ids.end()){
-                    gene_order[i_and_e.second.gene_id] = index;
-                    ++index;
-                }
-                gene_ids.insert(i_and_e.second.gene_id);
-
-                if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
-                    std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
-                }
-            }
-            bool first_good = true;
-            bool last_good = true;
-            for(auto i_and_e : read.blocks){
-                std::string gid = i_and_e.second.gene_id;
-                std::string tid = i_and_e.second.transcript_id;
-                int last_exon = last_exons[tid];
-                int order = gene_order[gid];
-
-                if(dir == SEQDIR::forward){
-                    if(order != 0){
-                        if( i_and_e.second.exon_no >= last_exon - 1){
-                            first_good = false;
-                        }
-                    }
-                    else{
-                        if( i_and_e.second.exon_no == 2){
-                            last_good = false;
-                        }
-
-                    }
-                }else if (dir == SEQDIR::reverse){
-                    if(order == 0){
-                        if( i_and_e.second.exon_no == 2){
-                            last_good = false;
-                        }
-
-                    }
-                    else{
-                        if( i_and_e.second.exon_no >= last_exon - 1){
-                            first_good = false;
-                        }
-                    }
-
-                }else{
-                    last_good = false;
-                    first_good = false;
-                }
-         
-            }
-
-            std::string fusion_name = "";
-            for(const std::string &id : gene_ids){
-                fusion_name += gene_annot.find(id)->second.gene_name + "::";
-//>>>>>>> 874d68ff2c1c52937ad2cc56fe91706efa708519
+            for( std::string gid : gene_ids){
+                cand.non_covered_sum_ratio[gid]+= 1 - approximate_coverage[gid];
             }
                 
 
 
-            fusion_name.pop_back();
-            fusion_name.pop_back();
-
-            std::string fusion_id = std::accumulate( 
-                    std::next(std::begin(gene_ids)), std::end(gene_ids),
-                    *(std::begin(gene_ids)), dash_fold);
-
-
             cand.name = fusion_name;
             int last_first = - 1;
             if(read.first_exons.size() > 1){
@@ -534,7 +438,6 @@ namespace annotate{
                 cand.backward.push_back(read);
             }
         }
-
     };
 
     bool make_gene(const std::string &line, gene &g){
@@ -1092,7 +995,7 @@ namespace annotate{
                 << "\t" << fg_count  << "\t" << lg_count << "\t"
                 << 1.0 * fg_count / tcpflnz<< "\t"
                 << 1.0 * lg_count / tcpflnz << "\n"
-                << pvalue << "\t" << corr_pvalue << "\t" << null_rejected?"pPASS":"pFAIL" <<  "\n";
+                << pvalue << "\t" << corr_pvalue << "\t" << (null_rejected?"pPASS":"pFAIL") <<  "\n";
 
         }
        
