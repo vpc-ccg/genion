@@ -214,7 +214,6 @@ namespace annotate{
     };
 
     class candidate_read{
-
         public:
 
         std::string read_id;
@@ -322,6 +321,12 @@ namespace annotate{
         std::vector<std::pair<interval, interval> > duplications;
         std::vector<std::pair<gene, gene> > gene_overlaps;
 
+        size_t total_count() const {
+            return forward.size() 
+                + backward.size() 
+                + multi_first.size() 
+                + no_first.size();
+        }
         std::map<std::string, interval> fusion_gene_intervals(){
             std::map<std::string, std::string> chrs;
             std::map<std::string, int> mins; 
@@ -366,8 +371,8 @@ namespace annotate{
     }
     class fusion_manager{
         public:
-        std::unordered_map<std::string, candidate_fusion> fusions;
-        std::unordered_map<std::string, int> gene_counts;
+        std::map<std::string, candidate_fusion> fusions;
+        std::map<std::string, int> gene_counts;
 
         
         fusion_manager() {}
@@ -718,20 +723,26 @@ namespace annotate{
     }
 
 
-    std::unordered_map<std::string, size_t> count_genes( const std::string &feature_table_path, bool all = false){
+    std::pair<size_t,size_t> count_genes( const std::string &feature_table_path,
+            std::unordered_map<std::string, size_t> &count_table,
+            bool all = false){
         
-        std::unordered_map<std::string, size_t>  count_table;  
+          
         
         std::ifstream feature_file(feature_table_path);
         
+        size_t total_normal_count = 0;
+        size_t total_chimer_count = 0;
+
         std::string line;
         while(std::getline(feature_file, line)){
             std::vector<std::string> fields =  rsplit(line, "\t");
             if(!all && stoi(fields[2]) !=0){ // Split Alignment
+                ++total_chimer_count;
                 continue;
             }
+            ++total_normal_count;
             
-
             std::string gene_id1 = fields[1].substr(0,15);
             std::string gene_id2 = fields[1].substr(17);
 //            std::cerr << gene_id1 << " - " << gene_id2 << std::endl;
@@ -748,7 +759,7 @@ namespace annotate{
             }
 
         }
-        return count_table;
+        return std::make_pair(total_normal_count,total_chimer_count);
     }
 
 
@@ -831,7 +842,31 @@ namespace annotate{
 
         return true;
     }
-    
+   
+    double statistically_test_candidate(const candidate_fusion &fusion,
+            double chimera_rate,
+            const std::unordered_map<std::string, size_t> &gene_counts
+            ){
+
+            
+        std::vector<std::string> genes = rsplit(fusion.name,"::");
+        std::vector<size_t> normal_counts;
+        for(const std::string &gene : genes){
+            size_t count = gene_counts.at(gene);
+            normal_counts.push_back(count);
+        }
+        size_t total_normal_count = std::accumulate(normal_counts.begin(), normal_counts.end(), 0L);
+        double average_normal_count = static_cast<double>(total_normal_count) / normal_counts.size();
+
+        int x = fusion.total_count();
+        int n = x + average_normal_count;
+        int m = x + chimera_rate * average_normal_count;
+        int N = 2 * n; 
+        double pvalue = hyper_geom_cdf(x,n,m,N);
+        
+        return pvalue;
+    }
+
     int annotate_calls(int argc, char **argv){
         auto  opt = parse_args(argc, argv);
 
@@ -872,7 +907,6 @@ namespace annotate{
         chain_file.close();
         fusion_manager fm;
         for( auto &cand : candidates){
-
             fm.add_read(cand, gene_annot);
             //fm.add_read(cand, gene_annot, last_exons, read_directions);
         }
@@ -881,21 +915,41 @@ namespace annotate{
         
         std::string feature_table_path = input_prefix + "/feature_table.tsv";
 
-        std::unordered_map<std::string, size_t> gene_counts = count_genes(feature_table_path,false);
+        std::unordered_map<std::string, size_t> gene_counts;
+        auto[total_normal_count,total_chimer_count] = count_genes(feature_table_path, gene_counts, false);
+        double mean_chimera_ratio = static_cast<double>(total_chimer_count) / total_normal_count;
 
+
+        vector<double> pvalues;
         for( const auto &cand : fm.fusions){
+            double pvalue = statistically_test_candidate(cand.second, mean_chimera_ratio, gene_counts);
+            pvalues.push_back(pvalue);
+        }
+        auto hypothesis = multiple_test(pvalues, 0.05, pvalue_corrector::BENJAMINI_YEKUTIELI);
 
-            int total_count = cand.second.forward.size() 
+        auto pval_iter = pvalues.begin();
+        auto corr_pval_iter = hypothesis.corr_pvals.begin();
+        auto null_iter = hypothesis.null_rejected.begin();
+        for( const auto &cand : fm.fusions){
+            bool null_rejected = *null_iter;
+            double pvalue = *pval_iter;
+            double corr_pvalue = *corr_pval_iter;
+            pval_iter = std::next(pval_iter);
+            corr_pval_iter = std::next(corr_pval_iter);
+            null_iter = std::next(null_iter);
+            int total_count = cand.second.total_count();
+                /*
+                cand.second.forward.size() 
                 + cand.second.backward.size() 
                 + cand.second.multi_first.size() 
                 + cand.second.no_first.size();
+                */
             int total_count_putative_full_length = cand.second.forward.size() 
                 + cand.second.backward.size();
             std::vector<std::string> genes = rsplit(cand.first,"::");
 
             bool coding_flag = false;
             if( filter_non_coding){
-
                 for( const std::string &g : genes){
                     auto gptr = gene_annot.find(g);
                     if(gptr == gene_annot.end()){
@@ -907,27 +961,21 @@ namespace annotate{
                         break;
                     }
                 }
-             //   if(coding_flag){
-            //        break;
-           //     }
             }
             double gene_count_sum = 0;
             std::string gene_count_string = "";
             std::string idf_string = "";
             double total_idf = 0;
             for(const std::string &gene : genes){
-//                std::cerr  << "COUNT " << gene << "\t" << gene_counts[gene] << " for " << cand.first << "\n";
                 gene_count_sum += gene_counts[gene];
                 gene_count_string+= std::to_string(gene_counts[gene]) + ";";
                 idf_string+= std::to_string(fm.gene_counts[gene]-total_count) + ";";
                 total_idf+= fm.gene_counts[gene] - total_count;
             }
             
-            
             double tfidf_score = total_count * std::log(fm.fusions.size()/(1+total_idf/2));
             double tfidf_score_full_len = total_count_putative_full_length * std::log(fm.fusions.size()/(1+total_idf/2));
             
-
             int tcpflnz;
             if(total_count == 0){
                 tcpflnz = 1;
@@ -979,16 +1027,22 @@ namespace annotate{
             
             //#FusionID(Ensembl) Forward-Support Backward-Support Multi-First-Exon No-First-Exon Genes-Overlap Segmental-Duplication-Count FusionName(Symbol) FiN-Score Pass-Fail-Status total-normal-count fusion-count normal-counts proper-normal-count proper-FiN-Score total-other-fusion-count other-fusion-counts ffigf-score proper-ffigf-score A B Anorm Bnorm 
             std::cout << cand.first << "\t" << cand.second.forward.size() << "\t"
-                << cand.second.backward.size()  << "\t" << cand.second.multi_first.size() << "\t" << cand.second.no_first.size()
-                << "\t" <<  cand.second.gene_overlaps.size() << "\t" <<  cand.second.duplications.size()
+                << cand.second.backward.size()  << "\t"
+                << cand.second.multi_first.size() << "\t" << cand.second.no_first.size()
+                << "\t" <<  cand.second.gene_overlaps.size() 
+                << "\t" <<  cand.second.duplications.size()
                 << "\t" << cand.second.name << "\t" << fin_score
                 << "\t" <<  pass_fail_code
-                << "\t" << gene_count_sum << "\t" << total_count <<  "\t"  << gene_count_string << "\t"
-                << total_count_putative_full_length << "\t" << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
-                << "\t" <<  total_idf << "\t" << idf_string << "\t" << tfidf_score << "\t" << tfidf_score_full_len
+                << "\t" << gene_count_sum << "\t" << total_count 
+                << "\t"  << gene_count_string << "\t"
+                << total_count_putative_full_length << "\t" 
+                << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
+                << "\t" <<  total_idf << "\t" << idf_string 
+                << "\t" << tfidf_score << "\t" << tfidf_score_full_len
                 << "\t" << cand.second.fg_count  << "\t" << cand.second.lg_count << "\t"
                 << 1.0 * cand.second.fg_count / tcpflnz<< "\t"
-                << 1.0 * cand.second.lg_count / tcpflnz << "\n";
+                << 1.0 * cand.second.lg_count / tcpflnz << "\t"
+                << pvalue << "\t" << corr_pvalue << "\t" << null_rejected <<  "\n";
         }
        
         std::string bp_file_path = opt["output"].as<std::string>() + "/breakpoints.tsv";
@@ -1003,22 +1057,14 @@ namespace annotate{
             bool is_forward = true;
             for(const auto &ff : {cand.second.forward, cand.second.backward}){//, cand.second.no_first, cand.second.multi_first}){
                 for(const auto &fus : ff){
-                    //for(const auto &bp_pair : fus.get_breakpoints( &ff == &cand.second.forward)){
                     for(const auto &bp_pair : fus.get_breakpoints(is_forward)){
 
-
                         bp_file << fus.read_id <<"\t" << fusion_id << "\t" << bp_pair.first << "\t" << bp_pair.second << "\n";
-
                         breakpoints[bp_pair.first].push_back(bp_pair.second);
                     }
                 }
                 is_forward = false;
             }
-            //for(const auto &bps : breakpoints){
-            //    for(const auto &bp : bps.second){
-            //        bp_file << fusion_id << "\t" << bps.first << "\t" << bp << "\n";
-            //    }
-            //}
         }
         bp_file.close();
         return 0;  
