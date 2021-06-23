@@ -1042,7 +1042,7 @@ namespace annotate{
                 << "\t" << cand.second.fg_count  << "\t" << cand.second.lg_count << "\t"
                 << 1.0 * cand.second.fg_count / tcpflnz<< "\t"
                 << 1.0 * cand.second.lg_count / tcpflnz << "\t"
-                << pvalue << "\t" << corr_pvalue << "\t" << null_rejected <<  "\n";
+                << pvalue << "\t" << corr_pvalue << "\t" << null_rejected?"pPASS":"pFAIL" <<  "\n";
         }
        
         std::string bp_file_path = opt["output"].as<std::string>() + "/breakpoints.tsv";
