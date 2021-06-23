@@ -1,5 +1,7 @@
 import sys
 
+import gzip
+
 def low_complexity_sequence(seq, start, end, max_percent = 0.65):
     counts = {}
     for i in range(start,end):
@@ -31,7 +33,9 @@ def main(argc, argv):
             line = hand.readline()
 
     
-    with open(fastq_file, 'r') as hand, open(out_file, 'w') as ohand:
+    opener = gzip.open if ".gz" in fastq_file else open
+    
+    with opener(fastq_file, 'rt') as hand, open(out_file, 'w') as ohand:
         line = hand.readline()
         while line:
             fields = line.split()

@@ -219,7 +219,7 @@ rule fix_chains:
 rule fusion_annotate:
     input:
         cands=path_names["fusion"] + "/{sample}/candidate-reads.list",
-        direction=path_names["annot"] + "/{sample}/candidate-reads.direction",
+        #direction=path_names["annot"] + "/{sample}/candidate-reads.direction",
         chains=path_names["fusion"] + "/{sample}/chains.fixed.txt",  
         binary = "{}/../fusion".format(SCPA),
     output:
@@ -232,8 +232,8 @@ rule fusion_annotate:
     benchmark:
         path_names["annot"]+"/{sample}/benchmark.txt"
     shell:
-        timer_str + "{input.binary} annotate -o {params.outdir} -i {params.directory} -r {params.ref} -d {params.dups} -q {input.direction} > {output}"
-
+        timer_str + "{input.binary} annotate -o {params.outdir} -i {params.directory} -r {params.ref} -d {params.dups}  > {output}"
+#-q {input.direction}
 rule make_tabular_reads:
     input:
         reads=path_names["linkeddata"]+"/{sample}." + ext,

@@ -324,8 +324,7 @@ namespace annotate{
     class candidate_fusion{
 
         public:
-        int fg_count = 0;
-        int lg_count = 0;
+        std::map<std::string,double> non_covered_sum_ratio;
         std::string name;
         std::vector<candidate_read> forward;
         std::vector<candidate_read> backward;
@@ -386,71 +385,14 @@ namespace annotate{
         
         fusion_manager() {}
 
-        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot){
-
-
-            std::set<std::string> gene_ids;
-            std::map<std::string,int> gene_order;
-            std::set<std::string> transcript_ids;
-
-            int index = 0;
-            for(auto i_and_e : read.blocks){
-                auto ite = gene_ids.find(i_and_e.second.gene_id);
-                if(ite == gene_ids.end()){
-                    gene_order[i_and_e.second.gene_id] = index;
-                    ++index;
-                }
-                gene_ids.insert(i_and_e.second.gene_id);
-
-                if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
-                    std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
-                }
-            }
-            
-            std::string fusion_name = "";
-            for(const std::string &id : gene_ids){
-                fusion_name += gene_annot.find(id)->second.gene_name + "::";
-            }
-
-            fusion_name.pop_back();
-            fusion_name.pop_back();
-
-            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
-
-            for( std::string gid : gene_ids){
-                gene_counts[gid]+=1;
-            }
-            auto &cand = fusions[fusion_id];
-
-            cand.name = fusion_name;
-            int last_first = - 1;
-            if(read.first_exons.size() > 1){
-                cand.multi_first.push_back(read);
-                return;
-            }
-            if(read.first_exons.size() == 0){
-                cand.no_first.push_back(read);
-                return;
-            }
-            last_first = read.first_exons.back();
-            if(read.blocks[last_first].second.gene_id == *(gene_ids.rbegin())){
-                cand.forward.push_back(read);
-            }
-            else{
-                cand.backward.push_back(read);
-            }
-        }
-
         void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
-                std::unordered_map<std::string, int> &last_exons,
-                std::unordered_map<std::string, SEQDIR> &directions){
+            const std::unordered_map<std::string, int> &exon_counts){
 
 
             std::set<std::string> gene_ids;
-            std::map<std::string,int> gene_order;
+            std::map<std::string,int> gene_order;   //use
             std::set<std::string> transcript_ids;
-
-            SEQDIR dir = directions[read.read_id];
+            std::map<std::string, double> approximate_coverage;
             int index = 0;
             for(auto i_and_e : read.blocks){
                 auto ite = gene_ids.find(i_and_e.second.gene_id);
@@ -463,52 +405,9 @@ namespace annotate{
                 if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
                     std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
                 }
-//                std::cerr << gene_annot.find(i_and_e.second.gene_id)->second.gene_name << std::endl;
-            
+                int exon_count = exon_counts.at(i_and_e.second.transcript_id);
+                approximate_coverage[i_and_e.second.gene_id] += (1.0/exon_count);
             }
-            bool first_good = true;
-            bool last_good = true;
-            for(auto i_and_e : read.blocks){
-                std::string gid = i_and_e.second.gene_id;
-                std::string tid = i_and_e.second.transcript_id;
-                int last_exon = last_exons[tid];
-                int order = gene_order[gid];
-
-                if(dir == SEQDIR::forward){
-                    if(order != 0){
-                        if( i_and_e.second.exon_no >= last_exon - 1){
-                            first_good = false;
-                        }
-                    }
-                    else{
-                        if( i_and_e.second.exon_no == 2){
-                            last_good = false;
-                        }
-
-                    }
-                }else if (dir == SEQDIR::reverse){
-                    if(order == 0){
-                        if( i_and_e.second.exon_no == 2){
-                            last_good = false;
-                        }
-
-                    }
-                    else{
-                        if( i_and_e.second.exon_no >= last_exon - 1){
-                            first_good = false;
-                        }
-
-                    }
-
-                }else{
-                    last_good = false;
-                    first_good = false;
-                }
-         
-            }
-
-             
-  //          std::cerr << "\n";
             
             std::string fusion_name = "";
             for(const std::string &id : gene_ids){
@@ -524,22 +423,21 @@ namespace annotate{
                 gene_counts[gid]+=1;
             }
             auto &cand = fusions[fusion_id];
-            if(first_good){
-                cand.fg_count+=1;
+
+            for( std::string gid : gene_ids){
+                cand.non_covered_sum_ratio[gid]+= 1 - approximate_coverage[gid];
             }
-            if(last_good){
-                cand.lg_count+=1;
-            }
+                
+
+
             cand.name = fusion_name;
             int last_first = - 1;
             if(read.first_exons.size() > 1){
                 cand.multi_first.push_back(read);
-//                std::cerr << "Multiple first " << fusion_id << "\n";
                 return;
             }
             if(read.first_exons.size() == 0){
                 cand.no_first.push_back(read);
-//                std::cerr << "No first " << fusion_id << "\n";
                 return;
             }
             last_first = read.first_exons.back();
@@ -550,6 +448,7 @@ namespace annotate{
                 cand.backward.push_back(read);
             }
         }
+
     };
 
     bool make_gene(const std::string &line, gene &g){
@@ -663,6 +562,62 @@ namespace annotate{
         return pairs;
     }
 
+    std::unordered_map<std::string, int> read_transcript_exon_counts(std::string gtf_path){
+        std::ifstream gtf_file(gtf_path);
+        if(!gtf_file.is_open()){
+            std::cerr << "[ERROR] Cannot open file:" << gtf_path << std::endl;
+            exit(-1);
+        } 
+
+        std::unordered_map<std::string, int> transcript_exon_counts;
+        std::string line;
+        while(std::getline(gtf_file, line)){
+            if(line[0]=='#'){ //Comment
+                continue;
+            }
+
+            std::vector<std::string> tabs = rsplit(line, "\t");
+            std::string ch(tabs[0]);
+            if(ch.find("chr")!=std::string::npos){
+                ch = ch.substr(3);
+            }
+            interval range( tabs[0], stoi(tabs[3]), stoi(tabs[4]), tabs[6]=="-");
+            if(tabs[2] != "exon"){
+                continue;
+            }
+            std::vector<std::string> fields = rsplit(tabs[8], ";");
+            std::string transcript_id;
+            for(auto iter = fields.begin(); iter != fields.end(); iter++){
+
+
+                if( iter->find("transcript_id") != std::string::npos){
+                    std::string _id = iter->substr(iter->find("d ")+3);
+                    _id.pop_back();
+                    if( _id.find(".") != std::string::npos){
+                        size_t dot_pos = _id.find(".");
+                        _id = _id.substr(0,dot_pos);
+                    }
+                    transcript_id = _id;
+                    transcript_exon_counts[transcript_id]+=1;
+                    break;
+                } 
+/*  In case we have to handle duplicate exons.
+                if( iter->find("exon_number") != std::string::npos){
+                    std::string _id = iter->substr(iter->find("d ")+3);
+                    _id.pop_back();
+                    if( _id.find(".") != std::string::npos){
+                        size_t dot_pos = _id.find(".");
+                        _id = _id.substr(0,dot_pos);
+                    }
+                    exon_number = _id;
+*/
+                } 
+            }
+            
+        gtf_file.close();
+        return transcript_exon_counts;
+    }
+
     std::unordered_map<std::string, gene> read_gene_annotation(std::string gtf_path){
         std::ifstream gtf_file(gtf_path);
         if(!gtf_file.is_open()){
@@ -682,7 +637,6 @@ namespace annotate{
             }
         }
         gtf_file.close();
-//        std::cerr << "Read " << valid_set.size() << " gene annotations" << std::endl;
         return valid_set;
     }
 
@@ -859,7 +813,9 @@ namespace annotate{
         std::string gtf_path = reference_path + "/1.gtf";
         std::unordered_map<std::string, gene> gene_annot = read_gene_annotation(gtf_path);
         
-        std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);
+
+        std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
+        std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
 
         //std::unordered_map<std::string, SEQDIR> read_directions = read_read_directions(opt["read_dir"].as<std::string>());
 
@@ -886,7 +842,9 @@ namespace annotate{
         fusion_manager fm;
         for( auto &cand : candidates){
 
-            fm.add_read(cand, gene_annot);
+
+            fm.add_read(cand, gene_annot, transcript_exon_counts);
+            //fm.add_read(cand, gene_annot);
             //fm.add_read(cand, gene_annot, last_exons, read_directions);
         }
         
@@ -947,8 +905,10 @@ namespace annotate{
 
             double fin_score = genes.size() * total_count / (gene_count_sum+1);
 
-            double forward_rt_ex  =  1.0 * cand.second.fg_count / tcpflnz;
-            double backward_rt_ex = 1.0 * cand.second.lg_count / tcpflnz;
+            double fg_count = cand.second.non_covered_sum_ratio.at(genes[0]);
+            double lg_count = cand.second.non_covered_sum_ratio.at(genes[1]);
+            double forward_rt_ex  =  1.0 * fg_count / tcpflnz;
+            double backward_rt_ex = 1.0 * lg_count / tcpflnz;
             std::string pass_fail_code = "";
             if(coding_flag){
                 pass_fail_code += ":noncoding";
@@ -995,9 +955,9 @@ namespace annotate{
                 << "\t" << gene_count_sum << "\t" << total_count <<  "\t"  << gene_count_string << "\t"
                 << total_count_putative_full_length << "\t" << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
                 << "\t" <<  total_idf << "\t" << idf_string << "\t" << tfidf_score << "\t" << tfidf_score_full_len
-                << "\t" << cand.second.fg_count  << "\t" << cand.second.lg_count << "\t"
-                << 1.0 * cand.second.fg_count / tcpflnz<< "\t"
-                << 1.0 * cand.second.lg_count / tcpflnz << "\n";
+                << "\t" << fg_count  << "\t" << lg_count << "\t"
+                << 1.0 * fg_count / tcpflnz<< "\t"
+                << 1.0 * lg_count / tcpflnz << "\n";
         }
        
         std::string bp_file_path = opt["output"].as<std::string>() + "/breakpoints.tsv";
