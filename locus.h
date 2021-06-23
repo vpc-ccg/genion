@@ -8,7 +8,7 @@ struct locus{
     std::string chr;
     int position;
     
-    locus( const locus &other) : chr(other.chr), position(other.position){}
+    //locus( const locus &other) : chr(other.chr), position(other.position){}
     locus( std::string  chr, int position) : chr(chr), position(position){}
     locus():chr(""),position(0){}
 

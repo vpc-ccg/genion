@@ -188,12 +188,6 @@ rule all_basecounts:
     input:
         expand( path_names["mapping"] + "/{sample}.basecount" ,sample=config["input"].keys())
 
-
-
-
-
-
-
 rule all_counts:
     input:
         expand( path_names["fusion"] + "/{sample}/" ,sample=config["input"].keys())
@@ -475,7 +469,6 @@ rule find_fusion:
     params:
         ref=config["reference"],
         dir = lambda wildcards : path_names["fusion"]+"/"+ wildcards.sample,
-        mid = 120,
     threads:
         1
     shell:

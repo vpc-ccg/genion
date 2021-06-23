@@ -47,19 +47,12 @@ void log_candidate(std::ofstream &stream, const std::string &lastId, Candidate &
     }
     stream << "\n";
 }
-int yes=0;
-int no=0;
+
 bool apply_filter(Candidate &cand, AbstractFilter *filter){
 
     bool ret = cand.filtered;
     bool status = (*filter)(cand);
     cand.add_filter_status(status);
-    if(status){
-        no+=1;
-    }
-    else{
-        yes+=1;
-    }
     return !ret && !status;
 }
 
@@ -125,7 +118,8 @@ void dispatch_reads(const string &lr_path, const unordered_map<string,unsigned> 
         unsigned stream_index = id2index.find(id)->second;
         Candidate cand = id2cand.find(id)->second;
         if(cand.transcriptome.primary_count() > 1){
-            streams[stream_index] << ">" << id << "\t" << cand.transcriptome.prefix().tName << "\t" << cand.transcriptome.suffix().tName << "\n";
+            streams[stream_index] << ">" << id << "\t" 
+                << cand.transcriptome.prefix().tName << "\t" << cand.transcriptome.suffix().tName << "\n";
         }
         else{
             streams[stream_index] << ">" << id << "\t" << cand.transcriptome.prefix().tName << "\t-" << "\n";
@@ -321,8 +315,6 @@ int fusion_filter_only_wg(int argc, char **argv){
     streams.push_back(ofstream(fmt::format("{}/{:02d}-wg-homology-filter-reads.list",output_prefix,cnt++))); 
     streams.push_back(ofstream(fmt::format("{}/candidate-reads.list",output_prefix)));
 
-
-   
     ifstream file_paf(opt["g"].as<std::string>());
     if(file_paf.is_open() == false){
         cerr << fmt::format( "[ERROR] Cannot open file: {}",opt["g"].as<std::string>()) << std::endl;
@@ -397,7 +389,6 @@ int fusion_filter_only_wg(int argc, char **argv){
     }
 
     std::cerr << cnts[0] << "\t" << cnts[1] << "\t" << cnts[2] << "\n";
-    std::cerr << yes << "\t" << no << "\t" << cnts[2] << "\n";
     return 0;
 }
 
@@ -468,13 +459,10 @@ int fusion_filter(int argc, char **argv){
             filters.push_back(new StrandSwitchFilter(gene_info));
         }
     } 
-    //    WGProperAlignmentFilter                 wg_proper_alignment_filter(argv[3],argv[4],readId2cand);
 
     ofstream feature_table( fmt::format("{}/feature_table.tsv",output_prefix));
 
-
     unordered_map<string, Candidate> id2cand;
-
 
     vector<ofstream > streams;
     int cnt = 0;
