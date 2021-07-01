@@ -18,6 +18,15 @@ using std::tuple;
 using std::get;
 
 
+double limit_range(double low, double value, double high){
+    if( value < low){
+        return low;
+    }
+    if( value > high){
+        return high;
+    }
+    return value;
+}
 
 double approx_digamma(double n){
     return std::log(n) - 1.0 / (2 * n);
@@ -96,6 +105,7 @@ hypothesis_testing fdr_correction(const vector<double> &pvalues, double alpha, p
             default:
                 throw std::invalid_argument("Method not implemented for this function");
         }
+        p = limit_range(0, p, 1);
         paired_pvalues[k].first = p;
     }
     //Sort p-values back to original order
