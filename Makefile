@@ -1,7 +1,7 @@
 
 CXX      ?= g++
 OPT ?= -O2
-CXXFLAGS  = ${OPT}  -std=c++17 -lstdc++fs   -pg -g  -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest $(LDFLAGS)
+CXXFLAGS  = ${OPT}  -std=c++17 -lstdc++fs -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest $(LDFLAGS)
 LDFLAGS   +=  -lz -lstdc++fs 
 #-fopenmp -lpthread
 SOURCES   = main.cpp paf.cpp filters.cpp format.cpp cluster.cpp reference.cpp util.cpp chainchain.cpp cigar.cpp annotate.cpp
@@ -10,7 +10,7 @@ OBJDIR = obj
 OBJECTS   = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
 
 fusion: $(OBJECTS) directories
-	$(CXX) $(OBJECTS) -o $@ ${LDFLAGS} -pg
+	$(CXX) $(OBJECTS) -o $@ ${LDFLAGS}
 
 
 $(OBJDIR)/%.o : %.cpp directories
