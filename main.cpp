@@ -35,6 +35,8 @@ KSEQ_INIT(gzFile, gzread);
 
 
 void log_candidate(std::ofstream &stream, const std::string &lastId, Candidate &cand){
+//Make this part optional for LGBM
+#if 0
     stream << lastId << "\n";
     for(auto p = cand.transcriptome.cprimary_begin();
             p != cand.transcriptome.cprimary_end();
@@ -46,6 +48,7 @@ void log_candidate(std::ofstream &stream, const std::string &lastId, Candidate &
         stream << "\t" << p.second.gene_id ;
     }
     stream << "\n";
+#endif
 }
 
 bool apply_filter(Candidate &cand, AbstractFilter *filter){
@@ -669,6 +672,7 @@ int unknown_command_exit(){
             "Commands:",
             "---------",
             "filter",
+            "wg-filter",
             "cluster",
             "mkref",
             "annotate") << std::endl;
