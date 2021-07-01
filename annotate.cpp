@@ -126,7 +126,7 @@ namespace annotate{
             }
             locus s_s(ch,start);
             locus s_e(ch,end);
-            std::cerr << m_ch << "\t" << m_start << "\t" << m_end << "\t" << s_s.chr << "\t" << s_s.position << "\t" << s_e.chr << "\t" << s_e.position << "\tDUP" << "\n";
+//            std::cerr << m_ch << "\t" << m_start << "\t" << m_end << "\t" << s_s.chr << "\t" << s_s.position << "\t" << s_e.chr << "\t" << s_e.position << "\tDUP" << "\n";
             duplications.add(s_s, s_e, std::make_tuple(m_ch,m_start,m_end,frac_match));
         }
         dup_file.close();
@@ -310,7 +310,9 @@ namespace annotate{
 
         public:
         std::map<std::string,double> non_covered_sum_ratio;
+
         std::string name;
+        std::string id;
         std::vector<candidate_read> forward;
         std::vector<candidate_read> backward;
 
@@ -420,7 +422,9 @@ namespace annotate{
                 
 
 
+
             cand.name = fusion_name;
+            cand.id = fusion_id;
             int last_first = - 1;
             if(read.first_exons.size() > 1){
                 cand.multi_first.push_back(read);
@@ -697,7 +701,6 @@ namespace annotate{
             
             std::string gene_id1 = fields[1].substr(0,15);
             std::string gene_id2 = fields[1].substr(17);
-//            std::cerr << gene_id1 << " - " << gene_id2 << std::endl;
             if(all){
                 count_table[gene_id1]+=1;
                 if(gene_id1 != gene_id2){
@@ -801,12 +804,18 @@ namespace annotate{
             ){
 
             
-        std::vector<std::string> genes = rsplit(fusion.name,"::");
+        std::vector<std::string> genes = rsplit(fusion.id,"::");
         std::vector<size_t> normal_counts;
         for(const std::string &gene : genes){
-            size_t count = gene_counts.at(gene);
+
+            auto count_ptr = gene_counts.find(gene);
+            size_t count = 0;
+            if(count_ptr != gene_counts.end()){
+                count = count_ptr->second;
+            }
             normal_counts.push_back(count);
         }
+
         size_t total_normal_count = std::accumulate(normal_counts.begin(), normal_counts.end(), 0L);
         double average_normal_count = static_cast<double>(total_normal_count) / normal_counts.size();
 
@@ -837,10 +846,7 @@ namespace annotate{
         std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
         std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
 
-        //std::unordered_map<std::string, SEQDIR> read_directions = read_read_directions(opt["read_dir"].as<std::string>());
-
         std::string chains_path = input_prefix + "/chains.fixed.txt";
-        std::string candidate_path = input_prefix + "/candidate-reads.list";
 
         std::vector<candidate_read> candidates;
 
@@ -956,10 +962,9 @@ namespace annotate{
                 pass_fail_code += ":segdup";
             }
 
-            if( fin_score < min_fin_score){
-                pass_fail_code += ":lowfin";
-            }
-
+//            if( fin_score < min_fin_score){
+//                pass_fail_code += ":lowfin";
+//            }
             //if( cand.second.forward.size() + cand.second.backward.size() < min_support){
             if( cand.second.forward.size() + cand.second.backward.size() 
                     + cand.second.multi_first.size() < min_support){
@@ -969,15 +974,14 @@ namespace annotate{
                 pass_fail_code = "FAIL" + pass_fail_code;
             }
             else{
-
-                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex,50000, 0.1)){
+                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 250000, 0.1)){
                     pass_fail_code = "PASS:RT";
                 }
-                else if (fin_score < 0.1){
-                    pass_fail_code = "FAIL:lowfin";
+                else if( null_rejected){
+                    pass_fail_code = "PASS:GF";
                 }
                 else{
-                    pass_fail_code = "PASS:GF";
+                    pass_fail_code = "FAIL:RP";
                 }
             }
             
@@ -994,7 +998,7 @@ namespace annotate{
                 << "\t" <<  total_idf << "\t" << idf_string << "\t" << tfidf_score << "\t" << tfidf_score_full_len
                 << "\t" << fg_count  << "\t" << lg_count << "\t"
                 << 1.0 * fg_count / tcpflnz<< "\t"
-                << 1.0 * lg_count / tcpflnz << "\n"
+                << 1.0 * lg_count / tcpflnz << "\t"
                 << pvalue << "\t" << corr_pvalue << "\t" << (null_rejected?"pPASS":"pFAIL") <<  "\n";
 
         }
