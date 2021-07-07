@@ -74,7 +74,7 @@ namespace annotate{
             }
 
             if(ret != 0){
-                std::cerr << options->help() << std::endl;
+                std:://cerr << options->help() << std::endl;
                 exit(-1);
             }
             return result;
@@ -321,7 +321,7 @@ namespace annotate{
 
         std::vector<std::pair<interval, interval> > duplications;
         std::vector<std::pair<gene, gene> > gene_overlaps;
-
+        int invalid {0};
         size_t total_count() const {
             return forward.size() 
                 + backward.size() 
@@ -383,8 +383,10 @@ namespace annotate{
 
             std::set<std::string> gene_ids;
             std::map<std::string,int> gene_order;   //use
-            std::set<std::string> transcript_ids;
+            std::map<std::string, std::unordered_set<std::string>> transcript_ids;
             std::map<std::string, double> approximate_coverage;
+            int and_all_blocks  = 1;
+            int not_and_all_blocks = 1;
             int index = 0;
             for(auto i_and_e : read.blocks){
                 auto ite = gene_ids.find(i_and_e.second.gene_id);
@@ -393,14 +395,25 @@ namespace annotate{
                     ++index;
                 }
                 gene_ids.insert(i_and_e.second.gene_id);
+                
+                bool exon_strand = i_and_e.second.range.reverse_strand;
+                bool interval_strand = i_and_e.first.reverse_strand;
 
+                int strand_xor = exon_strand ^ interval_strand;
+
+                and_all_blocks = and_all_blocks && strand_xor;
+                not_and_all_blocks = not_and_all_blocks && (! strand_xor);
+
+                
                 if(gene_annot.find(i_and_e.second.gene_id) == gene_annot.end()){
                     std::cerr << i_and_e.second.gene_id << " is not in annotation!\n";
                 }
-                int exon_count = exon_counts.at(i_and_e.second.transcript_id);
-                approximate_coverage[i_and_e.second.gene_id] += (1.0/exon_count);
+                //int exon_count = exon_counts.at(i_and_e.second.transcript_id);
+                transcript_ids[i_and_e.second.gene_id].insert(i_and_e.second.transcript_id);
+                approximate_coverage[i_and_e.second.gene_id] += 1;//(1.0/exon_count);
             }
             
+
             std::string fusion_name = "";
             for(const std::string &id : gene_ids){
                 fusion_name += gene_annot.find(id)->second.gene_name + "::";
@@ -415,14 +428,28 @@ namespace annotate{
                 gene_counts[gid]+=1;
             }
             auto &cand = fusions[fusion_id];
+            if( !(and_all_blocks || not_and_all_blocks)){
+                //Invalid Strand configuration
+                //std::cerr << read.read_id << "\n";
+                //for(const std::string &id : gene_ids){
+                //    std::cerr << id<< "::";
+               // }
+                cand.invalid +=1;
+            }
 
             for( std::string gid : gene_ids){
-                cand.non_covered_sum_ratio[gid]+= 1 - approximate_coverage[gid];
+                int max_exon_count = 1;
+                for(std::string tid : transcript_ids[gid]){
+                    int exon_count = exon_counts.at(tid);
+
+                    if( max_exon_count < exon_count){
+                        max_exon_count = exon_count;
+                    }
+                }
+                //std::cerr << gid << "\t" << max_exon_count << "\t" << approximate_coverage[gid] << "\n";
+                cand.non_covered_sum_ratio[gid]+= 10.0 / (10 + max_exon_count - approximate_coverage[gid]);
             }
                 
-
-
-
             cand.name = fusion_name;
             cand.id = fusion_id;
             int last_first = - 1;
@@ -788,7 +815,7 @@ namespace annotate{
         if( distance > max_rt_distance){
             return false;
         }
-        if( forw_rt_ex > 0.25 || back_rt_ex > 0.25){
+        if( forw_rt_ex < 0.8 || back_rt_ex < 0.8){
             return false;
         }
         if( fin > max_fin){
@@ -950,6 +977,7 @@ namespace annotate{
             double lg_count = cand.second.non_covered_sum_ratio.at(genes[1]);
             double forward_rt_ex  =  1.0 * fg_count / tcpflnz;
             double backward_rt_ex = 1.0 * lg_count / tcpflnz;
+            double bad_strand_ratio = static_cast<double>(cand.second.invalid)/cand.second.total_count();
             std::string pass_fail_code = "";
             if(coding_flag){
                 pass_fail_code += ":noncoding";
@@ -961,11 +989,9 @@ namespace annotate{
             if(cand.second.duplications.size() > 0){
                 pass_fail_code += ":segdup";
             }
-
-//            if( fin_score < min_fin_score){
-//                pass_fail_code += ":lowfin";
-//            }
-            //if( cand.second.forward.size() + cand.second.backward.size() < min_support){
+            if(bad_strand_ratio > 0.25){
+                pass_fail_code += ":badstrand";
+            }
             if( cand.second.forward.size() + cand.second.backward.size() 
                     + cand.second.multi_first.size() < min_support){
                 pass_fail_code += ":lowsup";
@@ -974,7 +1000,7 @@ namespace annotate{
                 pass_fail_code = "FAIL" + pass_fail_code;
             }
             else{
-                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 250000, 0.1)){
+                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 600000, 0.5)){
                     pass_fail_code = "PASS:RT";
                 }
                 else if( null_rejected){
@@ -997,9 +1023,9 @@ namespace annotate{
                 << total_count_putative_full_length << "\t" << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
                 << "\t" <<  total_idf << "\t" << idf_string << "\t" << tfidf_score << "\t" << tfidf_score_full_len
                 << "\t" << fg_count  << "\t" << lg_count << "\t"
-                << 1.0 * fg_count / tcpflnz<< "\t"
-                << 1.0 * lg_count / tcpflnz << "\t"
-                << pvalue << "\t" << corr_pvalue << "\t" << (null_rejected?"pPASS":"pFAIL") <<  "\n";
+                << forward_rt_ex << "\t" << backward_rt_ex << "\t"
+                << pvalue << "\t" << corr_pvalue << "\t" << (null_rejected?"pPASS":"pFAIL") 
+                << "\t" << static_cast<double>(cand.second.invalid)/cand.second.total_count() << "\n";
 
         }
        
