@@ -225,7 +225,7 @@ cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
             ("no-strand-switch", "Don't allow strand switches")
             ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
             ("t,threads", "Number of threads", cxxopts::value<unsigned>()->default_value("8"))
-            ("e,force", "Force run")
+            ("e,force", "Force run, overwrites files in the output folder")
             ("keep-noncoding", "Keep non-coding exons")
             ("h,help", "Prints help")
             ;
@@ -245,22 +245,12 @@ cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
             std::cerr << "Transcriptome Paf alignment file is required" << std::endl;
             status |=4;
         }
-//        if(!result.count("i")){
-//            std::cerr << "RNASeq read fasta is required" << std::endl;
-//            status |=8;
-//        }
-//        if(!result.count("m")){
-//            std::cerr << "Homology tsv is required" << std::endl;           
-//            status |=16;
-//        }
+
         if(!result.count("o")){
             std::cerr << "Output prefix is required" << std::endl;           
             status |=32;
         }
-//        if(!result.count("s")){
-//            std::cerr << "Transcriptome self-align tsv is required" << std::endl;           
-//            status |=64;
-//        }
+
         if(!result.count("g")){
             std::cerr << "Whole Genome Paf alignment file is required" << std::endl;
             status |=128;
@@ -667,7 +657,7 @@ int fusion_filter(int argc, char **argv){
 }
 
 int unknown_command_exit(){
-    std::cerr << fmt::format("\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n",
+    std::cerr << fmt::format("\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n",
             "Usage:   fusion <command> [options]",
             "Commands:",
             "---------",

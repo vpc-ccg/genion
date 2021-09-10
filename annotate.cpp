@@ -40,9 +40,11 @@ namespace annotate{
 
                 ("i,input", "Output path of Genion filter stage", cxxopts::value<std::string>())
                 ("o,output", "Output path of Genion annotation stage", cxxopts::value<std::string>())
-                ("q,read_dir", "Read direction tabular", cxxopts::value<std::string>())
                 ("s,minsupport", "min support to flag PASS", cxxopts::value<size_t>()->default_value("3"))
-                ("f,minfin", "min fin to flag PASS", cxxopts::value<double>()->default_value("0.001"))
+                ("maxrtfin", "maximum allowed fin for a read-through event, "
+                                    "if larger event will be treated as an SV", cxxopts::value<double>()->default_value("0.5"))
+                ("maxrtdistance", "maximum allowed distance for a read-through event, "
+                                    "if larger event will be treated as an SV", cxxopts::value<long>()->default_value("600000"))
                 ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
                 ("r,reference", "Reference path used in filter stage",cxxopts::value<std::string>())
                 ("c,keep_non_coding", "Keep non coding genes", cxxopts::value<bool>()->default_value("false"))
@@ -51,7 +53,7 @@ namespace annotate{
             cxxopts::ParseResult result = options->parse(argc, argv);
             int ret = 0;
             if( result.count("h")){
-                std::cerr << options->help() << std::endl;
+             //   std::cerr << options->help() << std::endl;
                 ret |=1;
             }
 
@@ -73,8 +75,8 @@ namespace annotate{
                 ret |=64;
             }
 
-            if(ret != 0){
-                std:://cerr << options->help() << std::endl;
+            if(ret != 0 ){
+                std::cerr  << "\n" << options->help() << std::endl;
                 exit(-1);
             }
             return result;
@@ -859,7 +861,6 @@ namespace annotate{
         auto  opt = parse_args(argc, argv);
 
         size_t min_support = opt["minsupport"].as<size_t>();
-        double min_fin_score = opt["minfin"].as<double>();
 
         std::string input_prefix(opt["input"].as<std::string>());
         std::string reference_path(opt["reference"].as<std::string>());
@@ -925,12 +926,7 @@ namespace annotate{
             corr_pval_iter = std::next(corr_pval_iter);
             null_iter = std::next(null_iter);
             int total_count = cand.second.total_count();
-                /*
-                cand.second.forward.size() 
-                + cand.second.backward.size() 
-                + cand.second.multi_first.size() 
-                + cand.second.no_first.size();
-                */
+
             int total_count_putative_full_length = cand.second.forward.size() 
                 + cand.second.backward.size();
             std::vector<std::string> genes = rsplit(cand.first,"::");
@@ -1000,7 +996,8 @@ namespace annotate{
                 pass_fail_code = "FAIL" + pass_fail_code;
             }
             else{
-                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 600000, 0.5)){
+                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 
+                            opt["maxrtdistance"].as<long>(), opt["maxrtfin"].as<double>())){
                     pass_fail_code = "PASS:RT";
                 }
                 else if( null_rejected){
