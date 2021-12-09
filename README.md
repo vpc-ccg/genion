@@ -11,6 +11,11 @@ make
 
 ## Prerequisites
 
+Can be installed using conda
+```bash
+conda env create --file genion.env --name genion-env
+conda activate genion-env
+```
 
 |Dependencies | Version |
 |-------- |-----|
