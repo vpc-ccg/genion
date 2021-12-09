@@ -17,6 +17,7 @@
 #include <IITree.h>
 
 
+
 std::string get_prefix_suffix(const Candidate &cand);
 //Hash function injection
 namespace std{

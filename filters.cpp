@@ -1,6 +1,6 @@
 #include "filters.h"
 #include "paf.h"
-
+#include <array>
 
 AbstractFilter::~AbstractFilter(){
 }
@@ -133,8 +133,8 @@ bool TranscriptomeStrictMidFilter::operator()(const Candidate &cand) const {
     auto sfix = cand.transcriptome.suffix();
     if(pfix == sfix){return false;}
 
-    std::array<int,2> prefix_indices{pfix.qStart, pfix.qEnd};
-    std::array<int,2> suffix_indices{sfix.qStart, sfix.qEnd};
+    std::array<int,2> prefix_indices{{pfix.qStart, pfix.qEnd}};
+    std::array<int,2> suffix_indices{{sfix.qStart, sfix.qEnd}};
     if( prefix_indices[0] > prefix_indices[1]){
         std::swap(prefix_indices[0],prefix_indices[1]);
     }
