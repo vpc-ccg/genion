@@ -58,7 +58,7 @@ cfg_default("rawdata-base","/raw-data")
 cfg_default("analysis-base","/analysis")
 cfg_default("results-base","/results")
 assert_tool("minimap2")
-assert_tool("paftools")
+assert_tool("paftools.js")
 assert_tool("deSALT")
 
 cfg_default("chimeric-correction", False)
@@ -535,7 +535,7 @@ if config["wg-aligner"] == "deSALT":
         output:
             "{sample}.paf"
         shell:
-            "paftools sam2paf -L {input} > {output}"
+            "paftools.js sam2paf -L {input} > {output}"
     rule mask_mapped:
         input:
             paf=path_names["mapping"]+"/{id}.wg.paf",
