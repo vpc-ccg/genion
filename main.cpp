@@ -20,7 +20,6 @@
 #include <zlib.h>
 #include <cxxopts.hpp>
 
-#include "cluster.h"
 #include "paf.h"
 #include "filters.h"
 #include "candidate.h"
@@ -32,11 +31,12 @@
 using namespace std;
 KSEQ_INIT(gzFile, gzread);
 
-
-
+#if 1
+void log_candidate(std::ofstream &, const std::string &, Candidate &){
+#else
 void log_candidate(std::ofstream &stream, const std::string &lastId, Candidate &cand){
 //Make this part optional for LGBM
-#if 0
+
     stream << lastId << "\n";
     for(auto p = cand.transcriptome.cprimary_begin();
             p != cand.transcriptome.cprimary_end();
@@ -663,7 +663,6 @@ int unknown_command_exit(){
             "---------",
             "filter",
             "wg-filter",
-            "cluster",
             "mkref",
             "annotate") << std::endl;
     return -1;
@@ -680,9 +679,6 @@ int main(int argc, char **argv){
     }
     if(tool == "wg-filter"){
         return fusion_filter_only_wg(argc-1,argv+1);   
-    }
-    if(tool == "cluster"){
-        return clustering::fusion_cluster(argc-1,argv+1);
     }
     if(tool == "mkref"){
         return reference::mkref(argc-1,argv+1);
