@@ -360,7 +360,7 @@ namespace annotate{
                 const int &mx = maxs[key];
                 const std::string &chr = chrs[key];
                 bool rs = rev[key];
-                ivals.emplace(key, std::move(interval(chr,mn,mx,rs)));
+                ivals.emplace(key, interval{chr,mn,mx,rs});
             }
             return ivals;
         }
@@ -574,8 +574,8 @@ namespace annotate{
         return int_map;
     }
 
-    template<class K, class V,template<class,class> class MAP>
-    std::vector<std::pair<K, K>> get_key_pairs( const MAP<K,V> &map){
+    template<class K, class V>
+    std::vector<std::pair<K, K>> get_key_pairs( const std::map<K,V> &map){
         std::vector<std::pair<K,K>> pairs;
         for(auto iter = std::begin(map); iter != std::end(map); ++iter){
             for(auto inner = std::next(iter); inner !=std::end(map); ++inner){
@@ -889,7 +889,7 @@ namespace annotate{
                 std::getline(chain_file, line);
                 cr.add_block(line);
             }
-            candidates.push_back(std::move(cr));
+            candidates.push_back(cr);
         }
 
         chain_file.close();
