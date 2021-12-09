@@ -36,16 +36,16 @@ class Candidate{
             unsigned primary_count() const{
                 return primary_list.size();
             }
-            const auto csecondary_begin() const {
+            auto csecondary_begin() const {
                return secondary_list.cbegin();
             }
-            const auto csecondary_end() const {
+            auto csecondary_end() const {
                return secondary_list.cend();
             }
-            const auto cprimary_begin() const {
+            auto cprimary_begin() const {
                 return primary_list.cbegin();
             }
-            const auto cprimary_end() const {
+            auto cprimary_end() const {
                 return primary_list.cend();
             }
     };
