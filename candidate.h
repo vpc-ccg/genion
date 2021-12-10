@@ -2,6 +2,7 @@
 #define CANDIDATE_HEADER
 #include <algorithm>
 #include "paf.h"
+#include <unordered_set>
 #include <vector>
 #include "chainchain.h"
 #include <algorithm>
@@ -52,6 +53,7 @@ class Candidate{
     Alignment transcriptome;
     Alignment whole_genome;
     std::vector<std::pair<aligned_segment, exon>> canonical;
+    std::string id;
     void print_chains(std::ofstream *chainer){
         for( auto pp : canonical){
         *chainer << "\t" << pp.first.tmplt.start << "\t" << pp.first.tmplt.end << "\t" <<
@@ -66,7 +68,9 @@ class Candidate{
     bool filtered;
     std::vector<bool> filter_stats;
 
+
     Candidate() : filtered(false){}
+    Candidate(const std::string &str) : id(str), filtered(false){}
     Candidate(std::vector<paf_t> map_list): transcriptome(Alignment(map_list)), filtered(false){}
     Candidate(const Alignment &tra) : transcriptome(tra), filtered(false){}
     Candidate(const Alignment &tra, const Alignment &wg): transcriptome(tra), whole_genome(wg), filtered(false){}

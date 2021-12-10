@@ -272,6 +272,161 @@ cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
     }
 }
 
+int fusion_run(int argc, char **argv){
+
+    cxxopts::Options options(argv[0], "Gene fusion");
+    options.add_options()
+        ("r,reference", "Reference path, see mkref",cxxopts::value<std::string>())
+        ("p,tpaf", "Long read transcriptome alignment paf path",cxxopts::value<std::string>())
+        ("g,gpaf", "Long read whole genom e alignment paf path",cxxopts::value<std::string>())
+        ("m,homology", "Homolog gene pairs csv",cxxopts::value<std::string>())
+        ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
+        ("s,transcriptome-self-align", "Self align tsv",cxxopts::value<std::string>())
+        ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
+        ("min-support", "Minimum read support for fusion calls", cxxopts::value<int>()->default_value("3"))
+        ("max-rt-distance", "Maximum distance between genes for read-through events", cxxopts::value<int>()->default_value("500000"))
+        ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))
+        ("non-coding", "Allow non-coding genes and transcripts while calling gene fusions", cxxopts::value<bool>()->default_value("false"))
+        ("prefix-filter", "Maximum number of unaligned prefix bases", cxxopts::value<int>())
+        ("suffix-filter", "Maximum number of unaligned suffix bases", cxxopts::value<int>())
+        ("mid-filter", "Maximum number of unaligned bases between fusion gene alignments", cxxopts::value<int>())
+        ("no-strand-switch", "Don't allow strand switches")
+        ("t,threads", "Number of threads", cxxopts::value<unsigned>()->default_value("8"))
+        ("e,force", "Force run, overwrites files in the output folder")
+        ("keep-noncoding", "Keep non-coding exons")
+        ("h,help", "Prints help")
+        ;
+    cxxopts::ParseResult opt = options.parse(argc, argv);
+
+    int status = 0;
+    if( opt.count("h")){
+        std::cerr << options.help({"","Mandatory"}) << std::endl;
+        exit(-1);
+
+    }
+    if(!opt.count("r")){
+        std::cerr << "reference is required" << std::endl; 
+        status |=2;
+    }
+
+    if(!opt.count("o")){
+        std::cerr << "Output prefix is required" << std::endl;           
+        status |=32;
+    }
+
+    if(!opt.count("g")){
+        std::cerr << "Whole Genome Paf alignment file is required" << std::endl;
+        status |=128;
+    }
+
+    if(status){
+        std::cerr << options.help({"","Mandatory"}) << std::endl;
+        exit(-1);
+    }
+
+    string output_prefix(opt["output"].as<std::string>());
+
+    std::string gtf_path = fmt::format("{}/1.gtf",opt["r"].as<std::string>());
+    auto exon_forest = build_exon_forest(gtf_path);
+    ChainFilterMinSegment chain_filter(exon_forest,50);
+
+    if( !opt["force"].as<bool>()){
+        if(std::filesystem::exists(output_prefix)){
+            cerr << fmt::format("Path to {} already exists.\n",output_prefix);
+            return -1;
+        }
+    }
+
+    if(!std::filesystem::exists(output_prefix)){
+        std::filesystem::create_directory(output_prefix);
+    }
+
+    std::filesystem::create_directory(output_prefix);
+    std::string cdna_path = fmt::format("{}/reference.cdna.fa.gz",opt["r"].as<std::string>());
+    map<string, gene_t> gene_info = init_gene_info(cdna_path);
+
+    unordered_set<pair<string,string>> ref_self_align_info = init_sa_homolog_info(opt["s"].as<std::string>());
+    WholeGenomeSelfAlignFilter wg_self_align_filter(std::move(ref_self_align_info));
+
+
+
+    ifstream file_paf(opt["g"].as<std::string>());
+    if(file_paf.is_open() == false){
+        cerr << fmt::format( "[ERROR] Cannot open file: {}",opt["g"].as<std::string>()) << std::endl;
+        return EXIT_FAILURE;
+    }
+    
+    paf_t map1;
+
+    vector<paf_t> map_list;
+
+    std::string lastId = "-1";
+    map_list.clear();
+    std::array<int,3> cnts{{0,0,0}};
+    vector<Candidate> fusion_candidates;
+    std::unordered_map<string, size_t> gene_counts;
+    while(get_next_paf(file_paf, map1, exon_forest, true)){
+        if(map1.qName != lastId){
+            if(map_list.size() > 0){
+                Candidate cand{lastId};
+                cand.set_wg(map_list,false);
+
+                if(apply_filter(cand, &chain_filter)){
+                    cnts[0]++;
+                    std::unordered_set<string> genes;
+                    for(auto &p : cand.canonical){
+                        genes.insert(p.second.gene_id);
+                    }
+                    auto g1 = std::begin(genes);
+                    if(g1!=genes.end()){
+                        gene_counts[*g1]+=1;
+                    }
+                } 
+                else if(apply_filter(cand, &wg_self_align_filter)){
+                    cnts[1]++;
+                }
+                else{
+                    cnts[2]++;
+                    fusion_candidates.push_back(cand);
+                }
+            }
+            map_list.clear();
+            lastId = map1.qName;
+        }
+        map_list.push_back(map1);
+    }
+    if(map_list.size() > 0)
+    {
+        Candidate cand{lastId};
+        cand.set_wg(map_list,false);
+        if(apply_filter(cand, &chain_filter)){
+            cnts[0]++;
+        } 
+        else if(apply_filter(cand, &wg_self_align_filter)){
+            cnts[1]++;
+        }
+        else{
+            cnts[2]++;
+            fusion_candidates.push_back(cand);
+        }
+    }
+    file_paf.close();
+
+    annotate::annotate_calls_direct(
+            output_prefix,
+            opt["reference"].as<std::string>(),
+            opt["duplications"].as<std::string>(),
+            fusion_candidates,
+            gene_counts,
+            opt["min-support"].as<int>(),
+            cnts[0], cnts[1]+cnts[2],
+            opt["max-rt-distance"].as<int>(), opt["max-rt-fin"].as<double>(),
+            !opt["non-coding"].as<bool>()
+            );
+    std::cerr << cnts[0] << "\t" << cnts[1] << "\t" << cnts[2] << "\n";
+    return 0;
+}
+
 
 int fusion_filter_only_wg(int argc, char **argv){
     auto opt = parse_args(argc,argv,true);
@@ -661,6 +816,7 @@ int unknown_command_exit(){
             "Usage:   fusion <command> [options]",
             "Commands:",
             "---------",
+            "run",
             "filter",
             "wg-filter",
             "mkref",
@@ -674,6 +830,10 @@ int main(int argc, char **argv){
     }
     string tool(argv[1]);
 
+
+    if(tool == "run"){
+        return fusion_run(argc-1,argv+1);   
+    }
     if(tool == "filter"){
         return fusion_filter(argc-1,argv+1);   
     }

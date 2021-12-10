@@ -17,11 +17,28 @@
 #include <IITree.h>
 
 #include "annotate.h"
+#include "candidate.h"
 #include "locus.h"
+#include "paf.h"
 #include "util.h"
 #include <stats/stattest.h>
 
 #include <iostream>
+
+
+
+template< class B>
+inline void print_tsv(std::ostream &ost, B b){
+    ost << b << "\n";
+}
+
+template <class B, class... A>
+inline void print_tsv(std::ostream &ost, B b, A... a){
+    ost << b << "\t";
+    print_tsv(ost, a...);
+}
+
+
 namespace annotate{
 
 
@@ -303,6 +320,18 @@ namespace annotate{
 
             interval expos(chr,ex_start,ex_end, ex_rev_strand);
             exon ex(expos, gene_id, transcript_id, exon_no);
+
+            blocks.push_back(std::make_pair(alig,ex));
+        }
+        void add_block(const std::pair<aligned_segment,::exon> &p){
+
+            interval alig(p.first.chr, p.first.tmplt.start, p.first.tmplt.end, p.first.reverse_complemented);
+
+            interval expos(p.second.chr, p.second.start, p.second.end, p.second.strand);
+            exon ex(expos, p.second.gene_id, p.second.transcript_id, p.second.exon_number);
+            if(p.second.exon_number == 1){
+                first_exons.push_back(blocks.size());
+            }
 
             blocks.push_back(std::make_pair(alig,ex));
         }
@@ -856,6 +885,197 @@ namespace annotate{
         
         return pvalue;
     }
+
+    int annotate_calls_direct( 
+            const std::string &output_path,
+            const std::string &reference_path,
+            const std::string &duplication_path,
+            const std::vector<Candidate> &candidates,
+            std::unordered_map<std::string, size_t> gene_counts,
+            int min_support,
+            int total_normal_count, int total_chimer_count,
+            int maxrtdistance,      double maxrtfin,
+            bool only_coding){
+
+        bool full_debug_output = false;
+        std::string gtf_path = reference_path + "/1.gtf";
+        std::unordered_map<std::string, gene> gene_annot = read_gene_annotation(gtf_path);
+        
+        std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
+        std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
+
+        std::vector<candidate_read> candidate_reads;
+
+        std::string line;
+        for( const Candidate &cand: candidates){
+            candidate_read cr(cand.id);
+            for(const auto &p: cand.canonical){
+                cr.add_block(p);
+            }
+            candidate_reads.push_back(cr);
+        };
+        
+        fusion_manager fm;
+        for( auto &cand : candidate_reads){
+            fm.add_read(cand, gene_annot, transcript_exon_counts);
+            //fm.add_read(cand, gene_annot, last_exons, read_directions);
+        }
+        
+        annotate_duplications_and_overlaps(fm, gene_annot, duplication_path);
+        
+
+        double mean_chimera_ratio = static_cast<double>(total_chimer_count) / total_normal_count;
+
+
+        vector<double> pvalues;
+        for( const auto &cand : fm.fusions){
+            double pvalue = statistically_test_candidate(cand.second, mean_chimera_ratio, gene_counts);
+            pvalues.push_back(pvalue);
+        }
+        auto hypothesis = multiple_test(pvalues, 0.05, pvalue_corrector::BENJAMINI_YEKUTIELI);
+
+    
+        std::ofstream outfile( output_path + "/annotation.tsv");
+
+        auto pval_iter = pvalues.begin();
+        auto corr_pval_iter = hypothesis.corr_pvals.begin();
+        auto null_iter = hypothesis.null_rejected.begin();
+        for( const auto &cand : fm.fusions){
+            bool null_rejected = *null_iter;
+            double pvalue = *pval_iter;
+            double corr_pvalue = *corr_pval_iter;
+            pval_iter = std::next(pval_iter);
+            corr_pval_iter = std::next(corr_pval_iter);
+            null_iter = std::next(null_iter);
+            int total_count = cand.second.total_count();
+
+            int total_count_putative_full_length = cand.second.forward.size() 
+                + cand.second.backward.size();
+            std::vector<std::string> genes = rsplit(cand.first,"::");
+
+            bool coding_flag = false;
+            if( only_coding){
+                for( const std::string &g : genes){
+                    auto gptr = gene_annot.find(g);
+                    if(gptr == gene_annot.end()){
+                        std::cerr << "Gene " << g << " is not in annotation!\n";
+                        continue;
+                    }
+                    if(gptr->second.coding == false){
+                        coding_flag = true;
+                        break;
+                    }
+                }
+            }
+            double gene_count_sum = 0;
+            std::string gene_count_string = "";
+            std::string idf_string = "";
+            double total_idf = 0;
+            for(const std::string &gene : genes){
+                gene_count_sum += gene_counts[gene];
+                gene_count_string+= std::to_string(gene_counts[gene]) + ";";
+                idf_string+= std::to_string(fm.gene_counts[gene]-total_count) + ";";
+                total_idf+= fm.gene_counts[gene] - total_count;
+            }
+            
+            double tfidf_score = total_count * std::log(fm.fusions.size()/(1+total_idf/2));
+            double tfidf_score_full_len = total_count_putative_full_length * std::log(fm.fusions.size()/(1+total_idf/2));
+            
+            int tcpflnz;
+            if(total_count == 0){
+                tcpflnz = 1;
+            }
+            else{
+                tcpflnz = total_count;
+            }
+
+            double fin_score = genes.size() * total_count / (gene_count_sum+1);
+
+            double fg_count = cand.second.non_covered_sum_ratio.at(genes[0]);
+            double lg_count = cand.second.non_covered_sum_ratio.at(genes[1]);
+            double forward_rt_ex  =  1.0 * fg_count / tcpflnz;
+            double backward_rt_ex = 1.0 * lg_count / tcpflnz;
+            double bad_strand_ratio = static_cast<double>(cand.second.invalid)/cand.second.total_count();
+            std::string pass_fail_code = "";
+            if(coding_flag){
+                pass_fail_code += ":noncoding";
+            }
+
+            if(cand.second.gene_overlaps.size() > 0){
+                pass_fail_code += ":overlaps";
+            }
+            if(cand.second.duplications.size() > 0){
+                pass_fail_code += ":segdup";
+            }
+            if(bad_strand_ratio > 0.25){
+                pass_fail_code += ":badstrand";
+            }
+            if( cand.second.forward.size() + cand.second.backward.size() 
+                    + cand.second.multi_first.size() < min_support){
+                pass_fail_code += ":lowsup";
+            }
+            if( pass_fail_code != ""){
+                pass_fail_code = "FAIL" + pass_fail_code;
+            }
+            else{
+                if( is_cluster_rt( cand.second, fin_score, forward_rt_ex, backward_rt_ex, 
+                            maxrtdistance, maxrtfin)){
+                    pass_fail_code = "PASS:RT";
+                }
+                else if( null_rejected){
+                    pass_fail_code = "PASS:GF";
+                }
+                else{
+                    pass_fail_code = "FAIL:RP";
+                }
+            }
+            if(full_debug_output){ 
+            //#FusionID(Ensembl) Forward-Support Backward-Support Multi-First-Exon No-First-Exon Genes-Overlap Segmental-Duplication-Count FusionName(Symbol) FiN-Score Pass-Fail-Status total-normal-count fusion-count normal-counts proper-normal-count proper-FiN-Score total-other-fusion-count other-fusion-counts ffigf-score proper-ffigf-score A B Anorm Bnorm 
+                outfile << cand.first << "\t" << cand.second.forward.size() << "\t"
+                    << cand.second.backward.size()  << "\t"
+                    << cand.second.multi_first.size() << "\t" << cand.second.no_first.size()
+                    << "\t" <<  cand.second.gene_overlaps.size() 
+                    << "\t" <<  cand.second.duplications.size()
+                    << "\t" << cand.second.name << "\t" << fin_score
+                    << "\t" <<  pass_fail_code
+                    << "\t" << gene_count_sum << "\t" << total_count <<  "\t"  << gene_count_string << "\t"
+                    << total_count_putative_full_length << "\t" << genes.size() * total_count_putative_full_length / ( gene_count_sum + 1)
+                    << "\t" <<  total_idf << "\t" << idf_string << "\t" << tfidf_score << "\t" << tfidf_score_full_len
+                    << "\t" << fg_count  << "\t" << lg_count << "\t"
+                    << forward_rt_ex << "\t" << backward_rt_ex << "\t"
+                    << pvalue << "\t" << corr_pvalue << "\t" << (null_rejected?"pPASS":"pFAIL") 
+                    << "\t" << static_cast<double>(cand.second.invalid)/cand.second.total_count() << "\n";
+            }
+            else{
+                print_tsv(outfile, cand.first, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);
+            }
+        }
+       
+        std::string bp_file_path = output_path + "/breakpoints.tsv";
+
+        std::ofstream bp_file(bp_file_path);
+
+
+        for( const auto &cand : fm.fusions){
+            std::string fusion_id = cand.first;
+            std::map<std::string, std::vector<locus>> breakpoints;
+
+            bool is_forward = true;
+            for(const auto &ff : {cand.second.forward, cand.second.backward}){//, cand.second.no_first, cand.second.multi_first}){
+                for(const auto &fus : ff){
+                    for(const auto &bp_pair : fus.get_breakpoints(is_forward)){
+
+                        bp_file << fus.read_id <<"\t" << fusion_id << "\t" << bp_pair.first << "\t" << bp_pair.second << "\n";
+                        breakpoints[bp_pair.first].push_back(bp_pair.second);
+                    }
+                }
+                is_forward = false;
+            }
+        }
+        bp_file.close();
+        return 0;  
+    }
+       
 
     int annotate_calls(int argc, char **argv){
         auto  opt = parse_args(argc, argv);
