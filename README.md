@@ -4,14 +4,14 @@
 
 ## Installation from Source
 ```bash
-git clone git@bitbucket.org:f0t1h/genion.git
+git clone https://github.com/vpc-ccg/genion
 cd genion
 make
 ```
 
 ## Prerequisites
 
-Can be installed using conda
+Can be installed using conda (Except optional lightgbm)
 ```bash
 conda env create --file genion.env --name genion-env
 conda activate genion-env
@@ -36,7 +36,7 @@ Genion is runned using run.sh
 ```bash
 run.sh --configfile /path/to/config.yaml -j [num-threads]
 ```
-./run.sh is a snakemake container script. Any snakemake command can be used with it.
+./run.sh is a snakemake container script. Any snakemake parameter can be used with it.
 
 ## Reference building
 Reference for Genion can be build using: 
