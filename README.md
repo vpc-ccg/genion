@@ -13,7 +13,7 @@ make
 
 Can be installed using conda (Except optional lightgbm)
 ```bash
-conda env create --file genion.env --name genion-env
+conda create --file genion.env --name genion-env
 conda activate genion-env
 ```
 
