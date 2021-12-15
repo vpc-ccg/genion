@@ -18,7 +18,38 @@ using std::tuple;
 using std::get;
 
 
-double limit_range(double low, double value, double high){
+template<template<class> class Container, class Member>
+inline std::pair<double, double> mean_and_std(const Container<Member> &vec){
+    double mean = 0;
+    int sofar = 1;
+    for(const Member &m : vec){
+        mean += (m - mean) / sofar;
+        ++sofar;
+    }
+    double variance = 0;
+    for(const Member &m : vec){
+        variance += std::pow(m - mean,2);
+    }
+    double stdev = variance / (vec.size() - 1);
+    return std::make_pair(mean,stdev);
+}
+template<template<class...> class Container, class Member, class Accessor>
+inline std::pair<double, double> mean_and_std(const Container<Member> &vec, Accessor accessor){
+    double mean = 0;
+    int sofar = 1;
+    for(const Member &m : vec){
+        mean += (accessor(m) - mean) / sofar;
+        ++sofar;
+    }
+    double variance = 0;
+    for(const Member &m : vec){
+        variance += std::pow(accessor(m) - mean,2);
+    }
+    double stdev = variance / (vec.size() - 1);
+    return std::make_pair(mean,stdev);
+}
+
+inline double limit_range(double low, double value, double high){
     if( value < low){
         return low;
     }
@@ -28,33 +59,33 @@ double limit_range(double low, double value, double high){
     return value;
 }
 
-double approx_digamma(double n){
+inline double approx_digamma(double n){
     return std::log(n) - 1.0 / (2 * n);
 }
 
 // I can convert this to a look-up table instead.
-double approx_harmonic(int n){
+inline double approx_harmonic(int n){
     return approx_digamma(n + 1) + 0.5772156649;
 }
 
-double lbinom( int n, int k){
+inline double lbinom( int n, int k){
     if ( n == 0 || k == 0){
         return 0;
     }
     return lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1); 
 }
 
-double lhyper_geom_pmf( int x, int n, int m, int N){
+inline double lhyper_geom_pmf( int x, int n, int m, int N){
     return lbinom(n, x) + lbinom(N-n, m-x) - lbinom(N, m);
 }
 
-double hyper_geom_pmf( int x, int n, int m, int N){
+inline double hyper_geom_pmf( int x, int n, int m, int N){
     return exp(lhyper_geom_pmf(x,n,m,N));
 }
 
 //Upper
 //Computes upper tail of fisher_exact test
-double hyper_geom_cdf( int x, int n, int m, int N){
+inline double hyper_geom_cdf( int x, int n, int m, int N){
     double cdf = 0;
     for( int i = x; i <= n; ++i){
         cdf += hyper_geom_pmf(i,n,m,N);
@@ -79,7 +110,7 @@ class hypothesis_testing{
 // Used statsmodel as a reference
 // https://github.com/statsmodels/statsmodels/blob/main/statsmodels/stats/multitest.py
 //
-hypothesis_testing fdr_correction(const vector<double> &pvalues, double alpha, pvalue_corrector method){
+inline hypothesis_testing fdr_correction(const vector<double> &pvalues, double alpha, pvalue_corrector method){
 
     hypothesis_testing test;
     vector<pair<double,size_t>> paired_pvalues;
@@ -123,7 +154,7 @@ hypothesis_testing fdr_correction(const vector<double> &pvalues, double alpha, p
 }
 
 
-hypothesis_testing fixed_alpha_correction(const vector<double> &pvalues, double alpha, pvalue_corrector method){
+inline hypothesis_testing fixed_alpha_correction(const vector<double> &pvalues, double alpha, pvalue_corrector method){
     hypothesis_testing test;
     double corrected_alpha = alpha;
     switch(method){
@@ -156,7 +187,7 @@ hypothesis_testing fixed_alpha_correction(const vector<double> &pvalues, double 
     }
     return test;
 }
-hypothesis_testing holm_bonferroni_method(const vector<double> &pvalues, double alpha){
+inline hypothesis_testing holm_bonferroni_method(const vector<double> &pvalues, double alpha){
     hypothesis_testing test;
     
     vector<tuple<double,size_t,bool>> paired_pvalues;
@@ -190,7 +221,7 @@ hypothesis_testing holm_bonferroni_method(const vector<double> &pvalues, double 
     return test;
 }
 
-hypothesis_testing multiple_test(const vector<double> &pvalues, double alpha, pvalue_corrector method){
+inline hypothesis_testing multiple_test(const vector<double> &pvalues, double alpha, pvalue_corrector method){
     switch(method){
         case pvalue_corrector::BENJAMINI_HOCHBERG:
         case pvalue_corrector::BENJAMINI_YEKUTIELI:

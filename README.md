@@ -11,9 +11,9 @@ make
 
 ## Prerequisites
 
-Can be installed using conda (Except optional lightgbm)
+Can be installed using conda/mamba (Except optional lightgbm)
 ```bash
-conda env create --file genion.env --name genion-env
+conda create --file genion.env --name genion-env
 conda activate genion-env
 ```
 
@@ -25,35 +25,38 @@ conda activate genion-env
 |[minimap2](https://github.com/lh3/minimap2/tree/master/misc) | >= 2.17 |
 |[paftools](https://github.com/lh3/minimap2/tree/master/misc) |  |
 |[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
-|[lightgbm*](https://lightgbm.readthedocs.io/en/latest/) | >= 2.3.2 |
+
 
 lightgbm is required for optional chimeric read correction step.
 
 ## Running Genion
 
-Genion is runned using run.sh
+```bash
+    ./fusion run
+        --reference /path/to/ref/fasta
+        --gtf       /path/to/annot/gtf
+        --gpaf      /path/to/genomic/mapping/paf 
+        -s          /path/to/gene/homology/tsv
+        -o          /path/to/output/tsv
+        -d          /path/to/genomicSuperDups.txt
+        -i          /path/to/input/fastq
+```
+
+## Required References 
+
+GTF annotation and Whole genome reference sequence can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
+
+genomicSuperDups.txt can bve downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
+
+Homology tsv file can be produced using ENSEMBL cDNA reference and following:
 
 ```bash
-run.sh --configfile /path/to/config.yaml -j [num-threads]
+        minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
+        cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
 ```
-./run.sh is a snakemake container script. Any snakemake parameter can be used with it.
 
-## Reference building
-Reference for Genion can be build using: 
-```bash
-./ref-build.sh --configfile=config.yaml [ref-name]/done
-```
-and passing following in a config file
-```yaml
-dna_ref:
-    Homo_sapiens.GRCh38.dna.primary_assembly.fa
-cdna_ref:
-    Homo_sapiens.GRCh38.cdna.all.fa
-gtf:
-    Homo_sapiens.GRCh38.97.gtf
-```
-All of these files can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
-
+# Genion Snakemake
+We provide a snakemake file to help running genion. This snakemake also assists two step deSALT mapping.
 ## Project Configuration
 In order to run Genion, you need to create a project configuration file namely ``config.yaml``. 
 This configuration consists of a number mandatory settings and some optional advance settings. 
@@ -61,16 +64,21 @@ Below is the list of the all the settings that you can set in your project.
 
 |config-paramater-name | Type | Description|
 |------------------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------|
-| path                         | Mandatory | Full path to project directory.  |
-| rawdata-base                 | Mandatory | Location of the input fastq files relative to ``path``.                                                         |
-| reference                    | Mandatory | Full path to the reference build by ./ref-build.sh.                                                               |
-| input                        | Mandatory | A list of input files per sample.       |
-| duplications                 | Mandatory | Path to genomicSuperDups.txt file. Can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip) |
+| path                          | Mandatory | Full path to project directory.  |
+| reference-dna                 | Mandatory | Full path to the dna reference                |
+| reference-cdna                | Mandatory | Full path to the cdna reference                |
+| annotation-gtf                 | Mandatory | Full path to the gtf annotation                |
+| rawdata-base                  | Mandatory | Location of the input fastq files relative to ``path``.                                                         |
+| or rawdata                       | Mandatory | Full path to the location of the input fastq files                                                        |
+| input                        | Mandatory | A list of input files per sample. See the following example     |
+| ext                          | Optional  | (Important, if this is wrong snakemake won't run correctly) extension of the fastq files used in input (``fastq``,``fastq.gz``,``fq``,``fq.gz``) default:``fastq`` |
+| genion-binary                | Optional  | Path to genion binary, should be set if genion is not in $PATH ||
+| desalt-index                 | Optional  | If not provided, reference will be indexed on the run ||
 | analysis-base                | Optional  | Location of intermediate files relative to ``path``. default: ``{path}/analysis``|
+| or analysis                  | Optional  | Full path to the location of intermediate files. default: ``{path}/analysis``|
 | results-base                 | Optional  | Location of final results relative to the ``path``. default: ``{path}/results``  |
+| or results                   | Optional  | Full path to the location of final results. default: ``{path}/results``  |
 | wg-aligner                   | Optional  | Mapper to use (``deSALT``, ``minimap2``) default: ``deSALT``                                                                      |
-| ext                          | Optional   | extension of the fastq files used in input (``fastq``,``fastq.gz``,``fq``,``fq.gz``) default:``fastq`` |
-| chimeric-correction          | Optional   | If True, run lightgbm chimeric read correction on reads in chimeric clusters default: False |
 
 ### Input formatting in the config file
 Each input requires a fastq file and type. Type is used to configure parameters by the mapper.
@@ -87,10 +95,15 @@ The following a an example of ``config-yaml`` for Nanopore and Pacbio runs for a
 ```yaml
 path:
     /path/to/project/directory
-reference:
-    /path/to/reference/
-duplications:
-    /path/to/genomicSuperDups.txt
+
+annotation-gtf/:
+    /path/to/annotation/gtf
+reference-dna:
+    /path/to/reference/dna
+reference-cdna:
+    /path/to/reference/cdna
+desalt-index:
+    /path/to/index/dir/
 ext:
     fastq.gz
 wg-aligner:

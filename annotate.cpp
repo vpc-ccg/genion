@@ -10,6 +10,7 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 #include <cmath>
 
@@ -888,7 +889,7 @@ namespace annotate{
 
     int annotate_calls_direct( 
             const std::string &output_path,
-            const std::string &reference_path,
+            const std::string &gtf_path,
             const std::string &duplication_path,
             const std::vector<Candidate> &candidates,
             std::unordered_map<std::string, size_t> gene_counts,
@@ -898,7 +899,7 @@ namespace annotate{
             bool only_coding){
 
         bool full_debug_output = false;
-        std::string gtf_path = reference_path + "/1.gtf";
+
         std::unordered_map<std::string, gene> gene_annot = read_gene_annotation(gtf_path);
         
         std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
@@ -935,12 +936,15 @@ namespace annotate{
         auto hypothesis = multiple_test(pvalues, 0.05, pvalue_corrector::BENJAMINI_YEKUTIELI);
 
     
-        std::ofstream outfile( output_path + "/annotation.tsv");
+
+        std::ofstream outfile( output_path );
+        std::ofstream outfile_fail( output_path + ".fail");
 
         auto pval_iter = pvalues.begin();
         auto corr_pval_iter = hypothesis.corr_pvals.begin();
         auto null_iter = hypothesis.null_rejected.begin();
         for( const auto &cand : fm.fusions){
+            std::string fusion_id = cand.first;
             bool null_rejected = *null_iter;
             double pvalue = *pval_iter;
             double corr_pvalue = *corr_pval_iter;
@@ -951,7 +955,7 @@ namespace annotate{
 
             int total_count_putative_full_length = cand.second.forward.size() 
                 + cand.second.backward.size();
-            std::vector<std::string> genes = rsplit(cand.first,"::");
+            std::vector<std::string> genes = rsplit(fusion_id,"::");
 
             bool coding_flag = false;
             if( only_coding){
@@ -1029,9 +1033,32 @@ namespace annotate{
                     pass_fail_code = "FAIL:RP";
                 }
             }
+
+/*
+            std::map<std::string, std::vector<locus>> breakpoints;
+
+            bool is_forward = true;
+            for(const auto &ff : {cand.second.forward, cand.second.backward, cand.second.no_first, cand.second.multi_first}){
+                for(const auto &fus : ff){
+                    for(const auto &bp_pair : fus.get_breakpoints(is_forward)){
+                        breakpoints[bp_pair.first].push_back(bp_pair.second);
+                    }
+                }
+                is_forward = false;
+            }
+
+            std::map<std::string, std::pair<double, double>> breakpoint_ranges;
+            std::map<std::string, std::string> chromosome_per_gene;
+            for( const auto &bpp : breakpoints){
+                chromosome_per_gene[bpp.first] = bpp.second[0].chr;
+                breakpoint_ranges[bpp.first] = mean_and_std(bpp.second, [] (const locus &l) -> double {
+                    return static_cast<double>(l.position);
+                });
+            }
+            */
             if(full_debug_output){ 
             //#FusionID(Ensembl) Forward-Support Backward-Support Multi-First-Exon No-First-Exon Genes-Overlap Segmental-Duplication-Count FusionName(Symbol) FiN-Score Pass-Fail-Status total-normal-count fusion-count normal-counts proper-normal-count proper-FiN-Score total-other-fusion-count other-fusion-counts ffigf-score proper-ffigf-score A B Anorm Bnorm 
-                outfile << cand.first << "\t" << cand.second.forward.size() << "\t"
+                outfile << fusion_id << "\t" << cand.second.forward.size() << "\t"
                     << cand.second.backward.size()  << "\t"
                     << cand.second.multi_first.size() << "\t" << cand.second.no_first.size()
                     << "\t" <<  cand.second.gene_overlaps.size() 
@@ -1047,32 +1074,25 @@ namespace annotate{
                     << "\t" << static_cast<double>(cand.second.invalid)/cand.second.total_count() << "\n";
             }
             else{
-                print_tsv(outfile, cand.first, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);
+                if(pass_fail_code.find("PASS")!=std::string::npos){
+/*
+                    std::string pos_string;
+                    for( const std::string &g: genes){
+                        auto rang = breakpoint_ranges.at(g);
+                        std::string ch = chromosome_per_gene.at(g);
+                        pos_string += g + "(" + ch + ":" + std::to_string(rang.first) + "±" + std::to_string(rang.second) + ")";
+                    }
+                    */
+                    print_tsv(outfile, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);// pos_string);
+                }
+                else{
+                    print_tsv(outfile_fail, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);
+
+                }
             }
         }
        
-        std::string bp_file_path = output_path + "/breakpoints.tsv";
 
-        std::ofstream bp_file(bp_file_path);
-
-
-        for( const auto &cand : fm.fusions){
-            std::string fusion_id = cand.first;
-            std::map<std::string, std::vector<locus>> breakpoints;
-
-            bool is_forward = true;
-            for(const auto &ff : {cand.second.forward, cand.second.backward}){//, cand.second.no_first, cand.second.multi_first}){
-                for(const auto &fus : ff){
-                    for(const auto &bp_pair : fus.get_breakpoints(is_forward)){
-
-                        bp_file << fus.read_id <<"\t" << fusion_id << "\t" << bp_pair.first << "\t" << bp_pair.second << "\n";
-                        breakpoints[bp_pair.first].push_back(bp_pair.second);
-                    }
-                }
-                is_forward = false;
-            }
-        }
-        bp_file.close();
         return 0;  
     }
        

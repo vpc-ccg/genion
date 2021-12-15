@@ -13,7 +13,7 @@ HEADERS = $(SOURCES:.cpp=.h)
 OBJDIR = obj
 OBJECTS   = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
 
-fusion: $(OBJECTS) directories
+genion: $(OBJECTS) directories
 	$(CXX) $(OBJECTS) -o $@ ${LDFLAGS}
 
 
@@ -28,4 +28,4 @@ ${OBJDIR}:
 clean:
 	@rm -f $(OBJECTS)
 clean-exe:
-	@rm -f fusion
+	@rm -f genion

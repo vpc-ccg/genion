@@ -8,33 +8,10 @@
 #include <sstream>
 #include <set>
 
+#include "gtf.h"
 #include <IITree.h>
 #include "locus.h"
-class interval{
-    public:
-        int start;
-        int end;
-        interval(int start, int end) : start(start), end(end){}
-        friend std::ostream& operator<<(std::ostream& os, const interval& i);
 
-        bool operator<(const interval &other) const{
-            if(start == other.start){
-                return end < other.end;
-            }
-            return start < other.start;
-        }
-        bool operator==(const interval &other) const{
-            return start == other.start && end == other.end;
-        }
-
-        double reciprocal_overlap(const interval &other) const{
-            double q = std::min(end,other.end) - std::max(start,other.start);
-            double r1 = q/(end-start);
-            double r2 = q/(other.end-other.start);
-            double result = std::min(r1,r2);
-            return std::max(result,0.0);
-        }
-};
 
 namespace std{
     template <>

@@ -27,6 +27,7 @@
 #include "reference.h"
 #include "util.h"
 #include "annotate.h"
+#include "gtf.h"
 
 using namespace std;
 KSEQ_INIT(gzFile, gzread);
@@ -133,6 +134,40 @@ void dispatch_reads(const string &lr_path, const unordered_map<string,unsigned> 
     kseq_destroy(read_fq);
     gzclose(file_ref);
 }
+map<string, gene_t> init_gene_info_gtf( string gtf_path){
+
+    // build gene_id -> gene_name map
+
+    map<string, gene_t> gene_info;
+    std::cerr << "Reading Transcriptome FASTA" << std::endl;
+    std::ifstream gt_file(gtf_path);
+    string buffer;
+    buffer.reserve(1000);
+
+    while(std::getline(gt_file, buffer)){
+        if(buffer[0] == '#'){
+            continue;
+        }
+        gtf entry(buffer);
+        gene_t &current = gene_info[entry.info["gene_id"]];
+        switch(entry.type){
+            case gtf::entry_type::gene:
+                current.gene_name = entry.info["gene_name"];
+                current.chr       = entry.chr;
+                current.chr_start = entry.start;
+                current.chr_end   = entry.end;
+                break;
+            case gtf::entry_type::transcript:
+                break;
+            case gtf::entry_type::exon:
+                break;
+            default: ;// Skip others
+        }
+    }
+
+    return gene_info;
+}
+
 
 map<string, gene_t> init_gene_info( string ref_path){
 
@@ -276,7 +311,10 @@ int fusion_run(int argc, char **argv){
 
     cxxopts::Options options(argv[0], "Gene fusion");
     options.add_options()
-        ("r,reference", "Reference path, see mkref",cxxopts::value<std::string>())
+        ("r,reference", "Reference dna path",cxxopts::value<std::string>())
+        ("gtf", "GTF annotation path",cxxopts::value<std::string>())
+
+        ("i,input", "Input fast{a,q} file",cxxopts::value<std::string>())
         ("p,tpaf", "Long read transcriptome alignment paf path",cxxopts::value<std::string>())
         ("g,gpaf", "Long read whole genom e alignment paf path",cxxopts::value<std::string>())
         ("m,homology", "Homolog gene pairs csv",cxxopts::value<std::string>())
@@ -298,26 +336,23 @@ int fusion_run(int argc, char **argv){
         ;
     cxxopts::ParseResult opt = options.parse(argc, argv);
 
-    int status = 0;
+    vector<string> mandatory_args {{"reference", "gtf","output", "gpaf", "duplications", "input"}};
+
     if( opt.count("h")){
         std::cerr << options.help({"","Mandatory"}) << std::endl;
         exit(-1);
 
     }
-    if(!opt.count("r")){
-        std::cerr << "reference is required" << std::endl; 
-        status |=2;
+    int aindex = 1;
+    int status = 0;
+    for( string &arg : mandatory_args){
+        if( opt.count(arg) == 0){
+            std::cerr << arg << " is required!" << std::endl;
+            status |=aindex;
+        }
+        aindex = aindex << 1;
     }
 
-    if(!opt.count("o")){
-        std::cerr << "Output prefix is required" << std::endl;           
-        status |=32;
-    }
-
-    if(!opt.count("g")){
-        std::cerr << "Whole Genome Paf alignment file is required" << std::endl;
-        status |=128;
-    }
 
     if(status){
         std::cerr << options.help({"","Mandatory"}) << std::endl;
@@ -326,24 +361,13 @@ int fusion_run(int argc, char **argv){
 
     string output_prefix(opt["output"].as<std::string>());
 
-    std::string gtf_path = fmt::format("{}/1.gtf",opt["r"].as<std::string>());
+    std::string gtf_path = opt["gtf"].as<std::string>();
     auto exon_forest = build_exon_forest(gtf_path);
     ChainFilterMinSegment chain_filter(exon_forest,50);
 
-    if( !opt["force"].as<bool>()){
-        if(std::filesystem::exists(output_prefix)){
-            cerr << fmt::format("Path to {} already exists.\n",output_prefix);
-            return -1;
-        }
-    }
 
-    if(!std::filesystem::exists(output_prefix)){
-        std::filesystem::create_directory(output_prefix);
-    }
-
-    std::filesystem::create_directory(output_prefix);
-    std::string cdna_path = fmt::format("{}/reference.cdna.fa.gz",opt["r"].as<std::string>());
-    map<string, gene_t> gene_info = init_gene_info(cdna_path);
+//    std::string cdna_path = fmt::format("{}/reference.cdna.fa.gz",opt["r"].as<std::string>());
+    map<string, gene_t> gene_info = init_gene_info_gtf(gtf_path);
 
     unordered_set<pair<string,string>> ref_self_align_info = init_sa_homolog_info(opt["s"].as<std::string>());
     WholeGenomeSelfAlignFilter wg_self_align_filter(std::move(ref_self_align_info));
@@ -363,7 +387,9 @@ int fusion_run(int argc, char **argv){
     std::string lastId = "-1";
     map_list.clear();
     std::array<int,3> cnts{{0,0,0}};
-    vector<Candidate> fusion_candidates;
+
+    //vector<Candidate> fusion_candidates;
+    unordered_map<string,Candidate> fusion_candidates;
     std::unordered_map<string, size_t> gene_counts;
     while(get_next_paf(file_paf, map1, exon_forest, true)){
         if(map1.qName != lastId){
@@ -387,7 +413,7 @@ int fusion_run(int argc, char **argv){
                 }
                 else{
                     cnts[2]++;
-                    fusion_candidates.push_back(cand);
+                    fusion_candidates[lastId] = cand;
                 }
             }
             map_list.clear();
@@ -407,16 +433,63 @@ int fusion_run(int argc, char **argv){
         }
         else{
             cnts[2]++;
-            fusion_candidates.push_back(cand);
+            fusion_candidates[lastId] = cand;
+
         }
     }
     file_paf.close();
 
+
+    vector<Candidate> cand_vec;
+    double max_percent = 0.65;
+    if(opt["input"].count() > 0 ){
+        string fastq_filename {opt["input"].as<string>() };
+        
+        gzFile file_ref = gzopen(fastq_filename.c_str(), "r");
+        kseq_t *read_fq = kseq_init(file_ref);
+
+        while (kseq_read(read_fq) >= 0){
+            std::string id(read_fq->name.s);
+            
+            auto iter = fusion_candidates.find(id);
+            if(iter == fusion_candidates.end()){
+                continue;
+            }
+            std::vector<std::pair<aligned_segment, exon>> new_canonical;
+            std::set<string> new_genes;
+            for(auto &seg : iter->second.canonical){
+                int start = seg.first.query.start;
+                int end = seg.first.query.end;
+                map<char, int> base_counts;
+                for(int i = start; i < end; ++i){
+                    char c = read_fq->seq.s[i];
+                    base_counts[c] += 1;
+                }
+                bool flag = true;
+                int max_bc = (end - start) * max_percent;
+                for( const std::pair<char, int> bc : base_counts){
+                    if(bc.second > max_bc){
+                        flag = true;
+                        break;
+                    }
+                }
+                if( flag){
+                    new_canonical.push_back(seg);
+                    new_genes.insert(seg.second.gene_id);
+                }
+            }
+            if( new_canonical.size() > 0 && new_genes.size() > 1){
+                iter->second.canonical = new_canonical;
+                cand_vec.push_back(iter->second);
+            }
+        }
+    }
+
     annotate::annotate_calls_direct(
             output_prefix,
-            opt["reference"].as<std::string>(),
+            opt["gtf"].as<std::string>(),
             opt["duplications"].as<std::string>(),
-            fusion_candidates,
+            cand_vec,
             gene_counts,
             opt["min-support"].as<int>(),
             cnts[0], cnts[1]+cnts[2],
