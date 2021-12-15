@@ -2,13 +2,13 @@
 CXX     ?= g++
 OPT ?= -O2
 LDFLAGS   +=  -lz 
-CXXFLAGS  = ${OPT}  -std=c++20  -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest 
+CXXFLAGS  = ${OPT}  -std=c++17   -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest 
 ifdef CONDA_PREFIX
 	CXXFLAGS += -I${CONDA_PREFIX}/include
 	LDFLAGS += -L${CONDA_PREFIX}/lib
 endif
 #-fopenmp -lpthread
-SOURCES   = main.cpp paf.cpp filters.cpp format.cpp reference.cpp util.cpp chainchain.cpp cigar.cpp annotate.cpp
+SOURCES   = main.cpp paf.cpp filters.cpp format.cpp  util.cpp chainchain.cpp cigar.cpp annotate.cpp
 HEADERS = $(SOURCES:.cpp=.h)
 OBJDIR = obj
 OBJECTS   = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
