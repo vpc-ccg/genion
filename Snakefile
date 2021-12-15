@@ -127,7 +127,7 @@ rule all_results:
 
 rule move_to_results:
     input:
-        fusions = path_names["fusion"] + "{sample}.annot.tsv",
+        fusions = path_names["fusion"] + "/{sample}.annot.tsv",
     output:
         fus = config["results"] + "/{sample}.fusions.tsv",
         rth = config["results"] + "/{sample}.readthrough.tsv", 
@@ -159,15 +159,14 @@ rule find_fusion:
         dups=config["analysis"]+"/genomicSuperDups.txt",
         binary = "genion" if "genion-binary" not in config else config["genion-binary"],
     output:
-        fusions = path_names["fusion"] + "{sample}.annot.tsv",
-        normals = path_names["fusion"] + "{sample}.annot.tsv.fail",
+        fusions = path_names["fusion"] + "/{sample}.annot.tsv",
+        normals = path_names["fusion"] + "/{sample}.annot.tsv.fail",
     params:
-        ref=config["reference-dna"],
         gtf=config["annotation-gtf"],
     threads:
         1
     shell:
-        "{input.binary} run -i {input.fq} -d {input.dups} --reference {params.ref} --gtf {params.gtf} -g {input.gpaf} -s {input.self_align} -t {threads} -o {output.fusions}"
+        "{input.binary} run -i {input.fq} -d {input.dups} --gtf {params.gtf} -g {input.gpaf} -s {input.self_align} -t {threads} -o {output.fusions}"
 
 
 def get_read_type(wildcards):
