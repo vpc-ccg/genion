@@ -29,6 +29,10 @@
 #include "annotate.h"
 #include "gtf.h"
 
+#ifndef GENION_VERSION
+#define GENION_VERSION "1.0.0"
+#endif
+
 using namespace std;
 KSEQ_INIT(gzFile, gzread);
 
@@ -333,7 +337,7 @@ cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
 
 int fusion_run(int argc, char **argv){
 
-    cxxopts::Options options(argv[0], "Gene fusion");
+    cxxopts::Options options(argv[0], "GENe fusION");
     options.add_options()
 
         ("gtf", "GTF annotation path",cxxopts::value<std::string>())
@@ -357,11 +361,18 @@ int fusion_run(int argc, char **argv){
         ("e,force", "Force run, overwrites files in the output folder")
         ("keep-noncoding", "Keep non-coding exons")
         ("h,help", "Prints help")
+        ("v,version", "Prints version")
         ;
     cxxopts::ParseResult opt = options.parse(argc, argv);
 
     vector<string> mandatory_args {{"gtf","output", "gpaf", "duplications", "input"}};
 
+
+    if( opt.count("v")){
+        std::cout << GENION_VERSION << "\n";
+        exit(-1);
+
+    }
     if( opt.count("h")){
         std::cerr << options.help({"","Mandatory"}) << std::endl;
         exit(-1);
@@ -922,44 +933,5 @@ int unknown_command_exit(){
 }
 
 int main(int argc, char **argv){
-    if(argc < 2){
-        return unknown_command_exit();
-    }
-    string tool(argv[1]);
-
-
-    if(tool == "run"){
-        return fusion_run(argc-1,argv+1);   
-    }
-    if(tool == "filter"){
-        return fusion_filter(argc-1,argv+1);   
-    }
-    if(tool == "wg-filter"){
-        return fusion_filter_only_wg(argc-1,argv+1);   
-    }
-    if(tool == "mkref"){
-        return reference::mkref(argc-1,argv+1);
-    }
-    if(tool == "annotate"){
-        return annotate::annotate_calls(argc-1,argv+1);
-    }
-    if(tool == "intersect-gtf"){
-        auto forest = build_exon_forest(argv[2]);
-        string line;
-        while(getline(cin, line)){
-            vector<string> fields = rsplit(line,"\t");
-            string ch = fields[0];
-            int start = stoi(fields[1]);
-            int end = stoi(fields[2]);
-            vector<size_t> overlaps;
-            forest.overlap(locus(ch,start),locus(ch,end),overlaps);
-            for( size_t ov : overlaps){
-                std::cout << ch << "\t" << start << "\t" << end << "\t" << forest.data(ov) << "\n";
-            }
-            overlaps.clear();
-            return 0;
-        }
-
-    }
-    return unknown_command_exit();
+   return fusion_run(argc,argv);   
 }

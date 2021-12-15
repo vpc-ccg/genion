@@ -166,7 +166,7 @@ rule find_fusion:
     threads:
         1
     shell:
-        "{input.binary} run -i {input.fq} -d {input.dups} --gtf {params.gtf} -g {input.gpaf} -s {input.self_align} -t {threads} -o {output.fusions}"
+        "{input.binary} -i {input.fq} -d {input.dups} --gtf {params.gtf} -g {input.gpaf} -s {input.self_align} -t {threads} -o {output.fusions}"
 
 
 def get_read_type(wildcards):
