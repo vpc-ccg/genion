@@ -134,12 +134,13 @@ void dispatch_reads(const string &lr_path, const unordered_map<string,unsigned> 
     kseq_destroy(read_fq);
     gzclose(file_ref);
 }
-map<string, gene_t> init_gene_info_gtf( string gtf_path){
+auto init_gene_info_gtf( string gtf_path){
 
     // build gene_id -> gene_name map
 
+
     map<string, gene_t> gene_info;
-    std::cerr << "Reading Transcriptome FASTA" << std::endl;
+    map<string, string> transcript2gene;
     std::ifstream gt_file(gtf_path);
     string buffer;
     buffer.reserve(1000);
@@ -158,6 +159,7 @@ map<string, gene_t> init_gene_info_gtf( string gtf_path){
                 current.chr_end   = entry.end;
                 break;
             case gtf::entry_type::transcript:
+                transcript2gene[ entry.info["transcript_id"]] = entry.info["gene_id"];
                 break;
             case gtf::entry_type::exon:
                 break;
@@ -165,7 +167,7 @@ map<string, gene_t> init_gene_info_gtf( string gtf_path){
         }
     }
 
-    return gene_info;
+    return make_tuple(gene_info, transcript2gene);
 }
 
 
@@ -230,6 +232,27 @@ unordered_map<pair<string,string>,double> init_homolog_info( string csv_path){
     return homologs;
 }
 
+unordered_set<pair<string,string>> init_sa_homolog_info( string tsv_path, map<string, string> &transcript2genes){
+    string line;
+    ifstream file_h(tsv_path);
+    unordered_set<pair<string,string>> homologs;
+
+    while(getline(file_h,line)){
+        vector<string> fields = rsplit(line,"\t");
+        try{
+            string g1 = transcript2genes.at(fields[0]);
+            string g2 = transcript2genes.at(fields[1]);
+
+            homologs.insert(make_pair(g1,g2));
+            homologs.insert(make_pair(g2,g1));
+        }
+        catch(std::out_of_range &e){ //Some transcripts in the cdna are not in gtf, but not a problem for us.
+ //           cerr << fields[0] << "\t" << fields[1] << "\tNot in Reference!\n";
+        }
+    }
+    file_h.close();
+    return homologs;
+}
 unordered_set<pair<string,string>> init_sa_homolog_info( string tsv_path){
     string line;
     ifstream file_h(tsv_path);
@@ -243,6 +266,7 @@ unordered_set<pair<string,string>> init_sa_homolog_info( string tsv_path){
     file_h.close();
     return homologs;
 }
+
 
 cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
     try{
@@ -311,7 +335,7 @@ int fusion_run(int argc, char **argv){
 
     cxxopts::Options options(argv[0], "Gene fusion");
     options.add_options()
-        ("r,reference", "Reference dna path",cxxopts::value<std::string>())
+
         ("gtf", "GTF annotation path",cxxopts::value<std::string>())
 
         ("i,input", "Input fast{a,q} file",cxxopts::value<std::string>())
@@ -336,7 +360,7 @@ int fusion_run(int argc, char **argv){
         ;
     cxxopts::ParseResult opt = options.parse(argc, argv);
 
-    vector<string> mandatory_args {{"reference", "gtf","output", "gpaf", "duplications", "input"}};
+    vector<string> mandatory_args {{"gtf","output", "gpaf", "duplications", "input"}};
 
     if( opt.count("h")){
         std::cerr << options.help({"","Mandatory"}) << std::endl;
@@ -367,9 +391,9 @@ int fusion_run(int argc, char **argv){
 
 
 //    std::string cdna_path = fmt::format("{}/reference.cdna.fa.gz",opt["r"].as<std::string>());
-    map<string, gene_t> gene_info = init_gene_info_gtf(gtf_path);
+    auto [ gene_info,transcript2gene] = init_gene_info_gtf(gtf_path);
 
-    unordered_set<pair<string,string>> ref_self_align_info = init_sa_homolog_info(opt["s"].as<std::string>());
+    unordered_set<pair<string,string>> ref_self_align_info = init_sa_homolog_info(opt["s"].as<std::string>(), transcript2gene);
     WholeGenomeSelfAlignFilter wg_self_align_filter(std::move(ref_self_align_info));
 
 
@@ -496,7 +520,7 @@ int fusion_run(int argc, char **argv){
             opt["max-rt-distance"].as<int>(), opt["max-rt-fin"].as<double>(),
             !opt["non-coding"].as<bool>()
             );
-    std::cerr << cnts[0] << "\t" << cnts[1] << "\t" << cnts[2] << "\n";
+    std::cerr << "Normal reads: " << cnts[0] << "\nHomologous chimeric reads: " << cnts[1] << "\nFusion candidate chimeric reads: " << cnts[2] << "\n";
     return 0;
 }
 
