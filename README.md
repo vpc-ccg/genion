@@ -32,7 +32,7 @@ lightgbm is required for optional chimeric read correction step.
 ## Running Genion
 
 ```bash
-    ./fusion run
+    ./genion run
         --reference /path/to/ref/fasta
         --gtf       /path/to/annot/gtf
         --gpaf      /path/to/genomic/mapping/paf 
