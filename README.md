@@ -11,7 +11,7 @@ make
 
 ## Prerequisites
 
-Can be installed using conda/mamba (Except optional lightgbm)
+Can be installed using conda/mamba
 ```bash
 conda create --file genion.env --name genion-env
 conda activate genion-env
