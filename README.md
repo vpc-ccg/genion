@@ -46,7 +46,7 @@ lightgbm is required for optional chimeric read correction step.
 
 GTF annotation and Whole genome reference sequence can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
 
-genomicSuperDups.txt can bve downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
+genomicSuperDups.txt can be downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
 
 Homology tsv file can be produced using ENSEMBL cDNA reference and following:
 
