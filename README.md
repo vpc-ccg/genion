@@ -27,8 +27,6 @@ conda activate genion-env
 |[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
 
 
-lightgbm is required for optional chimeric read correction step.
-
 ## Running Genion
 
 ```bash
