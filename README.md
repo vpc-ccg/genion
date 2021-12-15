@@ -11,7 +11,7 @@ make
 
 ## Prerequisites
 
-Can be installed using conda/mamba (Except optional lightgbm)
+Can be installed using conda/mamba
 ```bash
 conda create --file genion.env --name genion-env
 conda activate genion-env
@@ -27,12 +27,10 @@ conda activate genion-env
 |[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
 
 
-lightgbm is required for optional chimeric read correction step.
-
 ## Running Genion
 
 ```bash
-    ./fusion run
+    ./genion run
         --reference /path/to/ref/fasta
         --gtf       /path/to/annot/gtf
         --gpaf      /path/to/genomic/mapping/paf 
@@ -46,7 +44,7 @@ lightgbm is required for optional chimeric read correction step.
 
 GTF annotation and Whole genome reference sequence can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
 
-genomicSuperDups.txt can bve downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
+genomicSuperDups.txt can be downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
 
 Homology tsv file can be produced using ENSEMBL cDNA reference and following:
 
