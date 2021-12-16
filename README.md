@@ -1,43 +1,61 @@
 # Genion
+
+- [Genion](#genion)
+  * [Installation](#installation)
+    + [Installation with (bio)conda (not online at the moment)](#installation-with--bio-conda--not-online-at-the-moment-)
+    + [Installation with Docker](#installation-with-docker)
+    + [Installation from Source](#installation-from-source)
+  * [Running Genion](#running-genion)
+  * [Required References](#required-references)
+- [Genion Snakemake](#genion-snakemake)
+  * [Genion Snakemake dependencies](#genion-snakemake-dependencies)
+  * [Project Configuration](#project-configuration)
+    + [Input formatting in the config file](#input-formatting-in-the-config-file)
+- [Simulated Dataset](#simulated-dataset)
+  * [Download](#download)
+  * [Setup](#setup)
+
 ## Installation
+You can install genion with conda, docker or from source.
+### Installation with (bio)conda (not online at the moment)
+```bash
+conda install -c bioconda genion
+```
+Check out [mamba](https://github.com/mamba-org/mamba). A faster conda reimplementation.
 
+### Installation with Docker
+```bash
+git clone https://github.com/vpc-ccg/genion
+cd genion/docker
+docker build . -t genion:latest
+```
+After genion is built with Docker, you can run it with the following command 
+```bash
+docker run --user=$UID -v /path/to/inputs:/input -v /path/to/outputdir:/output genion [args]
+```
+### Installation from Source
+|Dependencies | Version |
+|-------- |-----|
+|c++ | gcc >= 9.4 or clang >= 8|
+|zlib| >= 1.2.11 |
 
-## Installation from Source
 ```bash
 git clone https://github.com/vpc-ccg/genion
 cd genion
 make
 ```
 
-## Prerequisites
-
-Can be installed using conda/mamba
-```bash
-conda create --file genion.env --name genion-env
-conda activate genion-env
-```
-
-|Dependencies | Version |
-|-------- |-----|
-|Python   | 3.x |
-|c++ | std++17 |
-|[deSALT](https://github.com/ydLiu-HIT/deSALT) | >= 1.5.5 |
-|[minimap2](https://github.com/lh3/minimap2/tree/master/misc) | >= 2.17 |
-|[paftools](https://github.com/lh3/minimap2/tree/master/misc) |  |
-|[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
-
 
 ## Running Genion
 
 ```bash
     ./genion run
-        --reference /path/to/ref/fasta
+        -i          /path/to/input/fastq
         --gtf       /path/to/annot/gtf
         --gpaf      /path/to/genomic/mapping/paf 
         -s          /path/to/gene/homology/tsv
-        -o          /path/to/output/tsv
         -d          /path/to/genomicSuperDups.txt
-        -i          /path/to/input/fastq
+        -o          /path/to/output/tsv
 ```
 
 ## Required References 
@@ -55,6 +73,23 @@ Homology tsv file can be produced using ENSEMBL cDNA reference and following:
 
 # Genion Snakemake
 We provide a snakemake file to help running genion. This snakemake also assists two step deSALT mapping.
+
+## Genion Snakemake dependencies
+|Dependencies | Version |
+|-------- |-----|
+|c++ | gcc >= 9.4 or clang >= 8|
+|zlib| >= 1.2.11 |
+|Python   | >= 3.7 |
+|[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
+|[deSALT](https://github.com/ydLiu-HIT/deSALT) | >= 1.5.5 |
+|[minimap2](https://github.com/lh3/minimap2/tree/master/misc) | >= 2.17 |
+|[paftools](https://github.com/lh3/minimap2/tree/master/misc) |  |
+
+Snakemake dependencies can be installed using conda/mamba
+```bash
+conda create --file genion.env --name genion-env
+conda activate genion-env
+```
 ## Project Configuration
 In order to run Genion, you need to create a project configuration file namely ``config.yaml``. 
 This configuration consists of a number mandatory settings and some optional advance settings. 
