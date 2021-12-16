@@ -30,7 +30,7 @@
 #include "gtf.h"
 
 #ifndef GENION_VERSION
-#define GENION_VERSION "1.0.0"
+#define GENION_VERSION "1.0.1"
 #endif
 
 using namespace std;
@@ -272,68 +272,7 @@ unordered_set<pair<string,string>> init_sa_homolog_info( string tsv_path){
 }
 
 
-cxxopts::ParseResult parse_args(int argc, char **argv, bool is_wg = false){
-    try{
-        cxxopts::Options *options = new cxxopts::Options(argv[0], "Gene fusion");
 
-        options->add_options()
-            ("r,reference", "Reference path, see mkref",cxxopts::value<std::string>())
-            ("p,tpaf", "Long read transcriptome alignment paf path",cxxopts::value<std::string>())
-            ("g,gpaf", "Long read whole genom e alignment paf path",cxxopts::value<std::string>())
-            ("m,homology", "Homolog gene pairs csv",cxxopts::value<std::string>())
-            ("s,transcriptome-self-align", "Self align tsv",cxxopts::value<std::string>())
-            ("prefix-filter", "Maximum number of unaligned prefix bases", cxxopts::value<int>())
-            ("suffix-filter", "Maximum number of unaligned suffix bases", cxxopts::value<int>())
-            ("mid-filter", "Maximum number of unaligned bases between fusion gene alignments", cxxopts::value<int>())
-            ("no-strand-switch", "Don't allow strand switches")
-            ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
-            ("t,threads", "Number of threads", cxxopts::value<unsigned>()->default_value("8"))
-            ("e,force", "Force run, overwrites files in the output folder")
-            ("keep-noncoding", "Keep non-coding exons")
-            ("h,help", "Prints help")
-            ;
-        cxxopts::ParseResult result = options->parse(argc, argv);
-
-        int status = 0;
-        if( result.count("h")){
-            std::cerr << options->help({"","Mandatory"}) << std::endl;
-            exit(-1);
-
-        }
-        if(!result.count("r")){
-            std::cerr << "reference is required" << std::endl; 
-            status |=2;
-        }
-        if(!is_wg && !result.count("p")){
-            std::cerr << "Transcriptome Paf alignment file is required" << std::endl;
-            status |=4;
-        }
-
-        if(!result.count("o")){
-            std::cerr << "Output prefix is required" << std::endl;           
-            status |=32;
-        }
-
-        if(!result.count("g")){
-            std::cerr << "Whole Genome Paf alignment file is required" << std::endl;
-            status |=128;
-        }
-
-        if(status){
-            std::cerr << options->help({"","Mandatory"}) << std::endl;
-            exit(-1);
-        }
-
-
-        return result;
-
-    }
-    catch (const cxxopts::OptionException& e)
-    {
-        std::cout << "error parsing options: " << e.what() << std::endl;
-        exit(1);
-    }
-}
 
 int fusion_run(int argc, char **argv){
 
@@ -370,13 +309,11 @@ int fusion_run(int argc, char **argv){
 
     if( opt.count("v")){
         std::cout << GENION_VERSION << "\n";
-        exit(-1);
-
+        return 0;
     }
     if( opt.count("h")){
         std::cerr << options.help({"","Mandatory"}) << std::endl;
-        exit(-1);
-
+        return 0;
     }
     int aindex = 1;
     int status = 0;
