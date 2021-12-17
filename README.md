@@ -1,6 +1,8 @@
 # Genion
 An accurate tool to detect gene fusion from long transcriptomics reads
 
+## Overview
+Genion is a gene fusion caller that  
 
 ## Installation
 You can install genion with conda, docker or from source.
@@ -32,22 +34,35 @@ cd genion
 make
 ```
 
-
 ## Running Genion
+
+
+### Input 
+Genion requires following input files to run:
+* [Mapping file (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read mapper (and convert sam to paf using paftools if mapper doesn't output paf).
+* Long reads file(fast{a,q}): These are used for filter low complexity sequence filtering
+* [Gene annotation file (GTF)](https://m.ensembl.org/info/website/upload/gff.html)
+* Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs.
+* [Duplication annotation](http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg18&hgta_doSchemaTable=genomicSuperDups): Genomic segmental duplication annotation. This used to filter out candidates that come from copies of the same segmental duplication.
+
+### Output
+* [output]: Contains called gene fusions and readthrough. It is a tab separated sheet with the following columns.
+    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads    pass-fail-code` 
+* [output].fail: Contains called filtered fusion candidates in the same column format.
 
 ```bash
 ./genion run
-    -i          /path/to/input/fastq            #Input fastq/fasta, optional parameter for low-complexity sequence filtering
-    --gtf       /path/to/annotation/gtf         #Gene annotation file in GTF format
-    --gpaf      /path/to/genomic/mapping/paf    #Splice aware genomic mapping of Long RNA sequences in paf format
-    -s          /path/to/gene/homology/tsv      #TSV file of homologous transcript pairs. Described in the next section
-    -d          /path/to/genomicSuperDups.txt   #Genomic segmental duplication annotation. Described in the next section 
-    -o          /path/to/output/tsv             #Output path for called gene fusions and read-throughs. also prints [output].fail file for filtered candidates
+    -i          /path/to/input/fastq           
+    --gtf       /path/to/annotation/gtf        
+    --gpaf      /path/to/genomic/mapping/paf    
+    -s          /path/to/gene/homology/tsv      
+    -d          /path/to/genomicSuperDups.txt   
+    -o          /path/to/output/tsv            
 ```
 
 ## Required References 
 
-GTF annotation and Whole genome reference sequence can be downloaded from https://ensembl.org/info/data/ftp/index.html
+GTF annotation, cDNA reference sequence and Whole genome reference sequence can be downloaded from https://ensembl.org/info/data/ftp/index.html
 
 `genomicSuperDups.txt` can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
 
@@ -59,7 +74,11 @@ cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}
 ```
 
 # Genion Snakemake
-We provide a snakemake file to help running genion. This snakemake also assists two step deSALT mapping.
+We provide a snakemake file to help running genion.
+* Maps Long reads
+* Downloads the duplication annotation
+* Prepares the Sequence similarity file
+* Runs Genion
 
 ## Genion Snakemake dependencies
 |Dependencies | Version |
@@ -77,7 +96,15 @@ Snakemake dependencies can be installed using conda/mamba
 conda create --file genion.env --name genion-env
 conda activate genion-env
 ```
-## Project Configuration
+
+## Running Genion Snakemake
+After preparing a config file following the Project Configuration section, you can run snakemake with the following command.
+
+```bash
+snakemake -j [number-of-threads] --config-file [path-to-config-file]
+```
+
+## Snakemake Project Configuration
 In order to run Genion, you need to create a project configuration file namely ``config.yaml``. 
 This configuration consists of a number mandatory settings and some optional advance settings. 
 Below is the list of the all the settings that you can set in your project.
@@ -85,9 +112,9 @@ Below is the list of the all the settings that you can set in your project.
 |config-paramater-name | Type | Description|
 |------------------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------|
 | path                          | Mandatory | Full path to project directory.  |
-| reference-dna                 | Mandatory | Full path to the dna reference                |
-| reference-cdna                | Mandatory | Full path to the cdna reference                |
-| annotation-gtf                 | Mandatory | Full path to the gtf annotation                |
+| reference-dna                 | Mandatory | Full path to the DNA reference                |
+| reference-cdna                | Mandatory | Full path to the cDNA reference                |
+| annotation-gtf                 | Mandatory | Full path to the GTF annotation                |
 | rawdata-base                  | Mandatory | Location of the input fastq files relative to ``path``.                                                         |
 | or rawdata                       | Mandatory | Full path to the location of the input fastq files                                                        |
 | input                        | Mandatory | A list of input files per sample. See the following example     |
@@ -140,6 +167,24 @@ input:
         fastq:
             - A_ont.fastq.gz
 ```
+
+## Snakemake Input/Output file structure
+
+```
+[path]/
+├── raw-data                       -> OR [raw-data]
+│   ├── A_clr.fastq.gz
+|   └── A_ont.fastq.gz
+├── analysis  (intermediate files) -> OR [analysis-base]
+│   ├── A_clr   
+|   └── A_ont
+└── results                        -> OR [results-base]
+    ├── A_clr.fusions.tsv
+    ├── A_clr.readthrough.tsv
+    ├── A_ont.fusions.tsv
+    └── A_ont.readthrough.tsv
+```
+
 
 # Simulated Dataset
 
