@@ -1,19 +1,6 @@
 # Genion
+An accurate tool to detect gene fusion from long transcriptomics reads
 
-- [Genion](#genion)
-  * [Installation](#installation)
-    + [Installation with (bio)conda (not online at the moment)](#installation-with--bio-conda--not-online-at-the-moment-)
-    + [Installation with Docker](#installation-with-docker)
-    + [Installation from Source](#installation-from-source)
-  * [Running Genion](#running-genion)
-  * [Required References](#required-references)
-- [Genion Snakemake](#genion-snakemake)
-  * [Genion Snakemake dependencies](#genion-snakemake-dependencies)
-  * [Project Configuration](#project-configuration)
-    + [Input formatting in the config file](#input-formatting-in-the-config-file)
-- [Simulated Dataset](#simulated-dataset)
-  * [Download](#download)
-  * [Setup](#setup)
 
 ## Installation
 You can install genion with conda, docker or from source.
@@ -160,7 +147,7 @@ input:
 Simulated gene fusion dataset can be downloaded from:
 https://figshare.com/articles/dataset/Small_gene_fusion_simulated_long_read_dataset/17253821
 
-##Contents
+## Contents
 
 ```
 example.fastq                  #Simulated reads fastq
