@@ -156,20 +156,31 @@ input:
 
 # Simulated Dataset
 
-Simulated sequences are uploaded in 4 gzipped parts.
-`simulation.reference.tar.gz` contains reference of the simulated sequences in the simulation. Details are written in the README document.
-
 ## Download
 Simulated gene fusion dataset can be downloaded from:
-https://figshare.com/articles/dataset/Simulated_RNA_Long_Reads_with_ONT_error_profile_and_gene_fusions_/14265554
+https://figshare.com/articles/dataset/Small_gene_fusion_simulated_long_read_dataset/17253821
 
+##Contents
+
+```
+example.fastq                  #Simulated reads fastq
+example.paf                    #Mapping in paf format
+genomicSuperDups.txt           #Genomic segmental duplication annotation
+Homo_sapiens.GRCh38.97.gtf     #Gene annotation
+cdna.self.tsv                  #Homology information
+```
 
 ## Setup
 ```bash
-zcat simulation.fastq.part00.gz  simulation.fastq.part01.gz  simulation.fastq.part02.gz  simulation.fastq.part03.gz > simulation.fastq
-tar xzvf simulation.reference.tar.gz 
+tar xzvf small_example.tar.gz
 ```
 
+## Example genion run
+
+```bash
+cd small_example
+genion -i example.fastq -d genomicSuperDups.txt --gtf Homo_sapiens.GRCh38.97.gtf -g example.paf -s cdna.self.tsv -t 1 -o output.tsv 
+```
 
 
 
