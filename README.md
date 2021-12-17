@@ -49,26 +49,26 @@ make
 ## Running Genion
 
 ```bash
-    ./genion run
-        -i          /path/to/input/fastq
-        --gtf       /path/to/annot/gtf
-        --gpaf      /path/to/genomic/mapping/paf 
-        -s          /path/to/gene/homology/tsv
-        -d          /path/to/genomicSuperDups.txt
-        -o          /path/to/output/tsv
+./genion run
+    -i          /path/to/input/fastq            #Input fastq/fasta, optional parameter for low-complexity sequence filtering
+    --gtf       /path/to/annotation/gtf         #Gene annotation file in GTF format
+    --gpaf      /path/to/genomic/mapping/paf    #Splice aware genomic mapping of Long RNA sequences in paf format
+    -s          /path/to/gene/homology/tsv      #TSV file of homologous transcript pairs. Described in the next section
+    -d          /path/to/genomicSuperDups.txt   #Genomic segmental duplication annotation. Described in the next section 
+    -o          /path/to/output/tsv             #Output path for called gene fusions and read-throughs. also prints [output].fail file for filtered candidates
 ```
 
 ## Required References 
 
-GTF annotation and Whole genome reference sequence can be downloaded from https://uswest.ensembl.org/info/data/ftp/index.html
+GTF annotation and Whole genome reference sequence can be downloaded from https://ensembl.org/info/data/ftp/index.html
 
-genomicSuperDups.txt can be downloaded from  ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
+`genomicSuperDups.txt` can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
 
 Homology tsv file can be produced using ENSEMBL cDNA reference and following:
 
 ```bash
-        minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
-        cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
+minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
+cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
 ```
 
 # Genion Snakemake
@@ -157,7 +157,7 @@ input:
 # Simulated Dataset
 
 Simulated sequences are uploaded in 4 gzipped parts.
-simulation.reference.tar.gz contains reference of the simulated sequences in the simulation. Details are written in the README document.
+`simulation.reference.tar.gz` contains reference of the simulated sequences in the simulation. Details are written in the README document.
 
 ## Download
 Simulated gene fusion dataset can be downloaded from:
