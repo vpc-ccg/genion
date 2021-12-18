@@ -24,7 +24,7 @@ docker run --user=$UID -v /path/to/inputs:/input -v /path/to/outputdir:/output g
 ### Installation from Source
 |Dependencies | Version |
 |-------- |-----|
-|c++ | gcc >= 9.4 or clang >= 8|
+|c++ | gcc >= 9 or clang >= 8|
 |zlib| >= 1.2.11 |
 
 ```bash
@@ -82,7 +82,7 @@ We provide a snakemake file to help running genion.
 ## Genion Snakemake dependencies
 |Dependencies | Version |
 |-------- |-----|
-|c++ | gcc >= 9.4 or clang >= 8|
+|c++ | gcc >= 9 or clang >= 8|
 |zlib| >= 1.2.11 |
 |Python   | >= 3.7 |
 |[snakemake](https://snakemake.readthedocs.io/en/stable/) | >= 5.3.0 |
