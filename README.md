@@ -1,12 +1,11 @@
 # Genion
-An accurate tool to detect gene fusion from long transcriptomics reads
+An accurate tool to detect gene fusion from long transcriptomics reads. 
 
-## Overview
-Genion is a gene fusion caller that  
+Genion comes with a stand-alone binary and helper Snakemake to assist mapping and preparing reference files.
 
 ## Installation
 You can install genion with conda, docker or from source.
-### Installation with (bio)conda (not online at the moment)
+### Installation with [bioconda](http://bioconda.github.io/recipes/genion/README.html) (not online at the moment)
 ```bash
 conda install -c bioconda genion
 ```
