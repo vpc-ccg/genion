@@ -171,19 +171,22 @@ input:
 
 ```
 [path]/
-├── raw-data                       -> OR [raw-data]
+├── rawdata                       
 │   ├── A_clr.fastq.gz
 |   └── A_ont.fastq.gz
-├── analysis  (intermediate files) -> OR [analysis-base]
+├── analysis  (intermediate files)
 │   ├── A_clr   
 |   └── A_ont
-└── results                        -> OR [results-base]
+└── results                       
     ├── A_clr.fusions.tsv
     ├── A_clr.readthrough.tsv
     ├── A_ont.fusions.tsv
     └── A_ont.readthrough.tsv
 ```
 
+For the input/output file structure description, snakemake configuration comes with two options each for rawdata, analysis and results.
+You can use `-base` suffix (like `rawdata-base`). This way snakemake will know that given path is relative to the project path.
+Or you can directly use `rawdata` to enter absolute path. This may be helpful if input files are not in the project directory. 
 
 # Simulated Dataset
 
