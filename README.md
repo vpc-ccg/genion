@@ -5,7 +5,7 @@ Genion comes with a stand-alone binary and helper Snakemake to assist mapping an
 
 ## Installation
 You can install genion with conda, docker or from source.
-### Installation with [bioconda](http://bioconda.github.io/recipes/genion/README.html) (not online at the moment)
+### Installation with [bioconda](http://bioconda.github.io/recipes/genion/README.html)
 ```bash
 conda install -c bioconda genion
 ```
