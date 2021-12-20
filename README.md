@@ -38,15 +38,18 @@ make
 
 ### Input 
 Genion requires following input files to run:
-* [Mapping file (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read mapper (and convert sam to paf using paftools if mapper doesn't output paf).
+* [Mapping file of transcriptomics long reads (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read to whole genome mapper (and convert sam to paf using paftools if mapper doesn't output paf).
 * Long reads file(fast{a,q}): These are used for filter low complexity sequence filtering
 * [Gene annotation file (GTF)](https://m.ensembl.org/info/website/upload/gff.html)
 * Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs.
-* [Duplication annotation](http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg18&hgta_doSchemaTable=genomicSuperDups): Genomic segmental duplication annotation. This used to filter out candidates that come from copies of the same segmental duplication.
+* [Duplication annotation](http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg18&hgta_doSchemaTable=genomicSuperDups): Genomic segmental duplication annotation. This used to filter out candidates that come from copies of the same segmental duplication. For hg38, it can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz.
 
 ### Output
 * [output]: Contains called gene fusions and readthrough. It is a tab separated sheet with the following columns.
-    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads    pass-fail-code` 
+    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads    pass-fail-code`
+       *  ffigf-score of fusion A::B : Number of supporting A::B fusion reads divided by number of fusion reads mapping to gene A or gene B but not both.
+       *  FiN score: Number of supporting A::B fusion reads divided by sum of number of normal A reads and B normal reads (normal being reads not supporting any gene fusions)
+       *  pass-fail-code: PASS:GF for gene fusions, PASS:RT for readthroughs, FAIL::reason::... for filtered candidates.
 * [output].fail: Contains called filtered fusion candidates in the same column format.
 
 ```bash
@@ -59,7 +62,7 @@ Genion requires following input files to run:
     -o          /path/to/output/tsv            
 ```
 
-## Required References 
+## Files required by Genion 
 
 GTF annotation, cDNA reference sequence and Whole genome reference sequence can be downloaded from https://ensembl.org/info/data/ftp/index.html
 
