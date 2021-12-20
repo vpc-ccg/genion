@@ -4,7 +4,7 @@ An accurate tool to detect gene fusion from long transcriptomics reads.
 Genion comes with a stand-alone binary and helper Snakemake to assist mapping and preparing reference files.
 
 ## Installation
-You can install genion with conda, docker or from source.
+You can install genion through conda, docker or from source.
 ### Installation with [bioconda](http://bioconda.github.io/recipes/genion/README.html)
 ```bash
 conda install -c bioconda genion
