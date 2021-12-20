@@ -1,3 +1,24 @@
+- [Genion](#genion)
+  * [Installation](#installation)
+    + [Installation with bioconda](#installation-with-bioconda)
+    + [Installation with Docker](#installation-with-docker)
+    + [Installation from Source](#installation-from-source)
+  * [Input Output Description](#input-output-description)
+    + [Input](#input)
+    + [Output](#output)
+- [Quick Start](#quick-start)
+  * [Download](#download)
+  * [Contents](#contents)
+  * [Preparation](#preparation)
+  * [Running](#running)
+- [Genion Snakemake](#genion-snakemake)
+  * [Genion Snakemake dependencies](#genion-snakemake-dependencies)
+  * [Snakemake Project Configuration](#snakemake-project-configuration)
+    + [Input formatting in the config file](#input-formatting-in-the-config-file)
+  * [Snakemake Input Output file structure](#snakemake-input-output-file-structure)
+  * [Running Genion Snakemake](#running-genion-snakemake)
+ 
+
 # Genion
 An accurate tool to detect gene fusion from long transcriptomics reads. 
 
@@ -33,15 +54,17 @@ cd genion
 make
 ```
 
-## Running Genion
-
-
+## Input Output Description
 ### Input 
 Genion requires following input files to run:
 * [Mapping file of transcriptomics long reads (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read to whole genome mapper (and convert sam to paf using paftools if mapper doesn't output paf).
 * Long reads file(fast{a,q}): These are used for filter low complexity sequence filtering
 * [Gene annotation file (GTF)](https://m.ensembl.org/info/website/upload/gff.html)
-* Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs.
+* Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs. This file can be produced using ENSEMBL cDNA reference and following command line:
+```bash
+minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
+cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
+```
 * [Duplication annotation](http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg18&hgta_doSchemaTable=genomicSuperDups): Genomic segmental duplication annotation. This used to filter out candidates that come from copies of the same segmental duplication. For hg38, it can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz.
 
 ### Output
@@ -53,7 +76,7 @@ Genion requires following input files to run:
 * [output].fail: Contains called filtered fusion candidates in the same column format.
 
 ```bash
-./genion run
+./genion
     -i          /path/to/input/fastq           
     --gtf       /path/to/annotation/gtf        
     --gpaf      /path/to/genomic/mapping/paf    
@@ -62,21 +85,40 @@ Genion requires following input files to run:
     -o          /path/to/output/tsv            
 ```
 
-## Files required by Genion 
+# Quick Start
 
-GTF annotation, cDNA reference sequence and Whole genome reference sequence can be downloaded from https://ensembl.org/info/data/ftp/index.html
+## Download
+You can download a small simulated example from: 
+https://figshare.com/articles/dataset/Small_gene_fusion_simulated_long_read_dataset/17253821
 
-`genomicSuperDups.txt` can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz (Should be extracted using gzip)
+## Contents
 
-Homology tsv file can be produced using ENSEMBL cDNA reference and following:
-
-```bash
-minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
-cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
+```
+example.fastq                  #Simulated reads fastq
+example.paf                    #Mapping in paf format
+genomicSuperDups.txt           #Genomic segmental duplication annotation
+Homo_sapiens.GRCh38.97.gtf     #Gene annotation
+cdna.self.tsv                  #Homology information
 ```
 
+## Preparation
+```bash
+tar xzvf small_example.tar.gz
+```
+
+## Running
+
+```bash
+cd small_example
+genion -i example.fastq -d genomicSuperDups.txt --gtf Homo_sapiens.GRCh38.97.gtf -g example.paf -s cdna.self.tsv -t 1 -o output.tsv 
+```
+
+Upon the successful run of genion on this example dataset, output.tsv should look like [this](https://github.com/vpc-ccg/genion/blob/master/test/small_example.output.tsv).
+
+
+
 # Genion Snakemake
-We provide a snakemake file to help running genion.
+Additionally, we provide a snakemake file to help running genion.
 * Maps Long reads
 * Downloads the duplication annotation
 * Prepares the Sequence similarity file
@@ -97,13 +139,6 @@ Snakemake dependencies can be installed using conda/mamba
 ```bash
 conda create --file genion.env --name genion-env
 conda activate genion-env
-```
-
-## Running Genion Snakemake
-After preparing a config file following the Project Configuration section, you can run snakemake with the following command.
-
-```bash
-snakemake -j [number-of-threads] --config-file [path-to-config-file]
 ```
 
 ## Snakemake Project Configuration
@@ -170,7 +205,7 @@ input:
             - A_ont.fastq.gz
 ```
 
-## Snakemake Input/Output file structure
+## Snakemake Input Output file structure
 
 ```
 [path]/
@@ -191,37 +226,10 @@ For the input/output file structure description, snakemake configuration comes w
 You can use `-base` suffix (like `rawdata-base`). This way snakemake will know that given path is relative to the project path.
 Or you can directly use `rawdata` to enter absolute path. This may be helpful if input files are not in the project directory. 
 
-# Simulated Dataset
 
-## Download
-Simulated gene fusion dataset can be downloaded from:
-https://figshare.com/articles/dataset/Small_gene_fusion_simulated_long_read_dataset/17253821
-
-## Contents
-
-```
-example.fastq                  #Simulated reads fastq
-example.paf                    #Mapping in paf format
-genomicSuperDups.txt           #Genomic segmental duplication annotation
-Homo_sapiens.GRCh38.97.gtf     #Gene annotation
-cdna.self.tsv                  #Homology information
-```
-
-## Setup
-```bash
-tar xzvf small_example.tar.gz
-```
-
-## Example genion run
+## Running Genion Snakemake
+After preparing a config file following the Project Configuration section, you can run snakemake with the following command.
 
 ```bash
-cd small_example
-genion -i example.fastq -d genomicSuperDups.txt --gtf Homo_sapiens.GRCh38.97.gtf -g example.paf -s cdna.self.tsv -t 1 -o output.tsv 
+snakemake -j [number-of-threads] --config-file [path-to-config-file]
 ```
-
-Upon the successful run of genion on this example dataset, output.tsv should look like [this](https://github.com/vpc-ccg/genion/blob/master/test/small_example.output.tsv).
-
-
-
-
-
