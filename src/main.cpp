@@ -293,7 +293,7 @@ int fusion_run(int argc, char **argv){
         ;
     cxxopts::ParseResult opt = options.parse(argc, argv);
 
-    vector<string> mandatory_args {{"gtf","output", "gpaf", "duplications", "input"}};
+    vector<string> mandatory_args {{"gtf","output", "gpaf", "duplications"}};
 
 
     if( opt.count("v")){

@@ -1083,10 +1083,10 @@ namespace annotate{
                         pos_string += g + "(" + ch + ":" + std::to_string(rang.first) + "±" + std::to_string(rang.second) + ")";
                     }
                     */
-                    print_tsv(outfile, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);// pos_string);
+                    print_tsv(outfile, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, gene_count_string, pass_fail_code);// pos_string);
                 }
                 else{
-                    print_tsv(outfile_fail, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, pass_fail_code);
+                    print_tsv(outfile_fail, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, gene_count_string, pass_fail_code);
 
                 }
             }
