@@ -278,13 +278,9 @@ int fusion_run(int argc, char **argv){
 
     cxxopts::Options options(argv[0], "GENe fusION");
     options.add_options()
-
         ("gtf", "GTF annotation path",cxxopts::value<std::string>())
-
         ("i,input", "Input fast{a,q} file",cxxopts::value<std::string>())
-        ("p,tpaf", "Long read transcriptome alignment paf path",cxxopts::value<std::string>())
         ("g,gpaf", "Long read whole genom e alignment paf path",cxxopts::value<std::string>())
-        ("m,homology", "Homolog gene pairs csv",cxxopts::value<std::string>())
         ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
         ("s,transcriptome-self-align", "Self align tsv",cxxopts::value<std::string>())
         ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
@@ -292,13 +288,6 @@ int fusion_run(int argc, char **argv){
         ("max-rt-distance", "Maximum distance between genes for read-through events", cxxopts::value<int>()->default_value("500000"))
         ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))
         ("non-coding", "Allow non-coding genes and transcripts while calling gene fusions", cxxopts::value<bool>()->default_value("false"))
-        ("prefix-filter", "Maximum number of unaligned prefix bases", cxxopts::value<int>())
-        ("suffix-filter", "Maximum number of unaligned suffix bases", cxxopts::value<int>())
-        ("mid-filter", "Maximum number of unaligned bases between fusion gene alignments", cxxopts::value<int>())
-        ("no-strand-switch", "Don't allow strand switches")
-        ("t,threads", "Number of threads", cxxopts::value<unsigned>()->default_value("8"))
-        ("e,force", "Force run, overwrites files in the output folder")
-        ("keep-noncoding", "Keep non-coding exons")
         ("h,help", "Prints help")
         ("v,version", "Prints version")
         ;
