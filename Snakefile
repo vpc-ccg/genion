@@ -117,13 +117,24 @@ if "chimeric-correction" in config and config["chimeric-correction"] == True:
         input:
             expand( path_names["cutting"] + "/{sample}/candidate.cut.reads.fq" ,sample=config["input"].keys()),
             expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys())
-            #expand( path_names["annot"] + "/{sample}/annotation.tsv" ,sample=config["input"].keys())
-
 
 rule all_results:
     input:
-        expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys())
+        expand(config["results"] + "/{sample}.fusions.tsv",sample=config["input"].keys()),
+        expand(config["results"] + "/{sample}.processed.ipynb", sample=config["input"].keys())
 
+
+rule make_figures:
+    input:
+        fusions = path_names["fusion"] + "/{sample}.annot.tsv",
+        rp = path_names["fusion"] + "/{sample}.annot.tsv.fail",
+        notebook = "figures.ipynb"
+    output:
+        notebook=config["results"] + "/{sample}.processed.ipynb"
+    log:
+        notebook=config["results"] + "/{sample}.processed.ipynb"
+    notebook:
+        "figures.ipynb"
 
 rule move_to_results:
     input:
