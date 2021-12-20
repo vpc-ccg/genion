@@ -219,6 +219,7 @@ cd small_example
 genion -i example.fastq -d genomicSuperDups.txt --gtf Homo_sapiens.GRCh38.97.gtf -g example.paf -s cdna.self.tsv -t 1 -o output.tsv 
 ```
 
+Upon the successful run of genion on this example dataset, output.tsv should look like [this](https://github.com/vpc-ccg/genion/blob/master/test/small_example.output.tsv).
 
 
 
