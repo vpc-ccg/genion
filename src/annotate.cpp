@@ -893,7 +893,7 @@ namespace annotate{
             const std::string &duplication_path,
             const std::vector<Candidate> &candidates,
             std::unordered_map<std::string, size_t> gene_counts,
-            int min_support,
+            size_t min_support,
             int total_normal_count, int total_chimer_count,
             int maxrtdistance,      double maxrtfin,
             bool only_coding){

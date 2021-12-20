@@ -288,7 +288,7 @@ int fusion_run(int argc, char **argv){
         ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
         ("s,transcriptome-self-align", "Self align tsv",cxxopts::value<std::string>())
         ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
-        ("min-support", "Minimum read support for fusion calls", cxxopts::value<int>()->default_value("3"))
+        ("min-support", "Minimum read support for fusion calls", cxxopts::value<size_t>()->default_value("3"))
         ("max-rt-distance", "Maximum distance between genes for read-through events", cxxopts::value<int>()->default_value("500000"))
         ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))
         ("non-coding", "Allow non-coding genes and transcripts while calling gene fusions", cxxopts::value<bool>()->default_value("false"))
@@ -463,7 +463,7 @@ int fusion_run(int argc, char **argv){
             opt["duplications"].as<std::string>(),
             cand_vec,
             gene_counts,
-            opt["min-support"].as<int>(),
+            opt["min-support"].as<size_t>(),
             cnts[0], cnts[1]+cnts[2],
             opt["max-rt-distance"].as<int>(), opt["max-rt-fin"].as<double>(),
             !opt["non-coding"].as<bool>()
