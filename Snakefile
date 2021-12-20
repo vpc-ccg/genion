@@ -244,6 +244,7 @@ if config["wg-aligner"] == "deSALT":
             mintail=50,
             minfront=120,
         run:
+            reads2clip = {}
             with open(input.paf, 'r') as hand:
                 line = hand.readline()
                 prev = ""
