@@ -1,3 +1,24 @@
+- [Genion](#genion)
+  * [Installation](#installation)
+    + [Installation with bioconda](#installation-with-bioconda)
+    + [Installation with Docker](#installation-with-docker)
+    + [Installation from Source](#installation-from-source)
+  * [Input Output Description](#input-output-description)
+    + [Input](#input)
+    + [Output](#output)
+- [Quick Start](#quick-start)
+  * [Download](#download)
+  * [Contents](#contents)
+  * [Preparation](#preparation)
+  * [Running](#running)
+- [Genion Snakemake](#genion-snakemake)
+  * [Genion Snakemake dependencies](#genion-snakemake-dependencies)
+  * [Snakemake Project Configuration](#snakemake-project-configuration)
+    + [Input formatting in the config file](#input-formatting-in-the-config-file)
+  * [Snakemake Input Output file structure](#snakemake-input-output-file-structure)
+  * [Running Genion Snakemake](#running-genion-snakemake)
+ 
+
 # Genion
 An accurate tool to detect gene fusion from long transcriptomics reads. 
 
@@ -33,7 +54,7 @@ cd genion
 make
 ```
 
-## Input/Output Description
+## Input Output Description
 ### Input 
 Genion requires following input files to run:
 * [Mapping file of transcriptomics long reads (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read to whole genome mapper (and convert sam to paf using paftools if mapper doesn't output paf).
@@ -67,7 +88,7 @@ cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}
 # Quick Start
 
 ## Download
-Simulated gene fusion dataset can be downloaded from:
+You can download a small simulated example from: 
 https://figshare.com/articles/dataset/Small_gene_fusion_simulated_long_read_dataset/17253821
 
 ## Contents
@@ -80,12 +101,12 @@ Homo_sapiens.GRCh38.97.gtf     #Gene annotation
 cdna.self.tsv                  #Homology information
 ```
 
-## Setup
+## Preparation
 ```bash
 tar xzvf small_example.tar.gz
 ```
 
-## Example genion run
+## Running
 
 ```bash
 cd small_example
@@ -97,7 +118,7 @@ Upon the successful run of genion on this example dataset, output.tsv should loo
 
 
 # Genion Snakemake
-We provide a snakemake file to help running genion.
+Additionally, we provide a snakemake file to help running genion.
 * Maps Long reads
 * Downloads the duplication annotation
 * Prepares the Sequence similarity file
@@ -118,13 +139,6 @@ Snakemake dependencies can be installed using conda/mamba
 ```bash
 conda create --file genion.env --name genion-env
 conda activate genion-env
-```
-
-## Running Genion Snakemake
-After preparing a config file following the Project Configuration section, you can run snakemake with the following command.
-
-```bash
-snakemake -j [number-of-threads] --config-file [path-to-config-file]
 ```
 
 ## Snakemake Project Configuration
@@ -191,7 +205,7 @@ input:
             - A_ont.fastq.gz
 ```
 
-## Snakemake Input/Output file structure
+## Snakemake Input Output file structure
 
 ```
 [path]/
@@ -212,3 +226,10 @@ For the input/output file structure description, snakemake configuration comes w
 You can use `-base` suffix (like `rawdata-base`). This way snakemake will know that given path is relative to the project path.
 Or you can directly use `rawdata` to enter absolute path. This may be helpful if input files are not in the project directory. 
 
+
+## Running Genion Snakemake
+After preparing a config file following the Project Configuration section, you can run snakemake with the following command.
+
+```bash
+snakemake -j [number-of-threads] --config-file [path-to-config-file]
+```
