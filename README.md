@@ -60,21 +60,14 @@ Genion requires following input files to run:
 * [Mapping file of transcriptomics long reads (paf)](https://github.com/lh3/miniasm/blob/master/PAF.md): Genion does not do mapping. It accepts mappings in paf format. You can use any splice-aware long read to whole genome mapper (and convert sam to paf using paftools if mapper doesn't output paf).
 * Long reads file(fast{a,q}): These are used for filter low complexity sequence filtering
 * [Gene annotation file (GTF)](https://m.ensembl.org/info/website/upload/gff.html)
-* Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs. This file can be produced using ENSEMBL cDNA reference and following command line:
+* Sequence similarity file: This is used to filter candidates from genes with similar sequences. This file is produced by all to all mapping cDNA reference file with itself. It can be created using genion snakemake or command line given in the Required References section. This file is a tab separated 2 column file containing transcript pairs. This file can be produced using [ENSEMBL cDNA reference](https://ftp.ensembl.org/pub/release-105/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz) and following command line:
 ```bash
 minimap2 [cdna.fa] [cdna.fa] -X -t [threads] -2 -c -o [cdna.selfalign.paf]
 cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}{print substr($1,1,15),substr($2,1,15),substr($3,1,15),substr($4,1,15);}' | awk '$1!=$3' | sort | uniq > [cdna.selfalign.tsv]
 ```
 * [Duplication annotation](http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg18&hgta_doSchemaTable=genomicSuperDups): Genomic segmental duplication annotation. This used to filter out candidates that come from copies of the same segmental duplication. For hg38, it can be downloaded from ftp://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz.
 
-### Output
-* [output]: Contains called gene fusions and readthrough. It is a tab separated sheet with the following columns.
-    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads normal-counts    pass-fail-code`
-       *  ffigf-score of fusion A::B : Number of supporting A::B fusion reads divided by number of fusion reads mapping to gene A or gene B but not both.
-       *  FiN-score: Number of supporting A::B fusion reads divided by sum of number of normal A reads and B normal reads (normal being reads not supporting any gene fusions)
-       *  normal-counts: ';' separated list of normal read counts of the member genes.
-       *  pass-fail-code: PASS:GF for gene fusions, PASS:RT for readthroughs, FAIL::reason::... for filtered candidates.
-* [output].fail: Contains called filtered fusion candidates in the same column format.
+### Running Genion
 
 ```bash
 ./genion
@@ -86,7 +79,17 @@ cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}
     -o          /path/to/output/tsv            
 ```
 
-# Quick Start
+### Output
+* [output]: Contains called gene fusions and readthrough. It is a tab separated sheet with the following columns.
+    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads normal-counts    pass-fail-code`
+       *  ffigf-score of fusion A::B : Number of supporting A::B fusion reads divided by number of fusion reads mapping to gene A or gene B but not both.
+       *  FiN-score: Number of supporting A::B fusion reads divided by sum of number of normal A reads and B normal reads (normal being reads not supporting any gene fusions)
+       *  normal-counts: ';' separated list of non-chimeric read counts of the member genes.
+       *  pass-fail-code: PASS:GF for gene fusions, PASS:RT for readthroughs, FAIL::reason::... for filtered candidates.
+* [output].fail: Contains called filtered fusion candidates in the same column format.
+
+
+# A Small Example 
 
 ## Download
 You can download a small simulated example from: 
@@ -194,16 +197,16 @@ ext:
 wg-aligner:
     deSALT
 input:
-    "A_clr":
+    "A":
         type:
             clr
         fastq:
             - A_clr.fastq.gz
-    "A_ont":
+    "B":
         type:
             ont1d
         fastq:
-            - A_ont.fastq.gz
+            - B_ont.fastq.gz
 ```
 
 ## Snakemake Input Output file structure
@@ -212,15 +215,15 @@ input:
 [path]/
 ├── rawdata                       
 │   ├── A_clr.fastq.gz
-|   └── A_ont.fastq.gz
+|   └── B_ont.fastq.gz
 ├── analysis  (intermediate files)
-│   ├── A_clr   
-|   └── A_ont
+│   ├── A   
+|   └── B
 └── results                       
-    ├── A_clr.fusions.tsv
-    ├── A_clr.readthrough.tsv
-    ├── A_ont.fusions.tsv
-    └── A_ont.readthrough.tsv
+    ├── A.fusions.tsv
+    ├── A.readthrough.tsv
+    ├── B.fusions.tsv
+    └── B.readthrough.tsv
 ```
 
 For the input/output file structure description, snakemake configuration comes with two options each for rawdata, analysis and results.
