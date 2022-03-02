@@ -239,6 +239,11 @@ namespace annotate{
         std::string read_id;
         std::vector<std::pair<interval, exon> > blocks;
         candidate_read(const std::string &rid) : read_id(rid) {}
+        candidate_read(const Candidate &cand) : read_id(cand.id){
+            for(const auto &p: cand.canonical){
+                add_block(p);
+            }
+        }
         std::vector<int> first_exons;
 
         std::map<std::string, locus> get_breakpoints(bool direction) const {
@@ -407,7 +412,14 @@ namespace annotate{
         std::map<std::string, candidate_fusion> fusions;
         std::map<std::string, int> gene_counts;
 
-        
+        fusion_manager( const std::vector<Candidate> &candidates, const std::unordered_map<std::string, gene> &gene_annot,
+            const std::unordered_map<std::string, int> &exon_counts){
+            for( auto &cand : candidates){
+
+                add_read(candidate_read{cand}, gene_annot, exon_counts);
+            }
+
+        }
         fusion_manager() {}
         void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
             const std::unordered_map<std::string, int> &exon_counts){
@@ -904,10 +916,8 @@ namespace annotate{
         
         std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
         std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
-
+        /*
         std::vector<candidate_read> candidate_reads;
-
-        std::string line;
         for( const Candidate &cand: candidates){
             candidate_read cr(cand.id);
             for(const auto &p: cand.canonical){
@@ -915,12 +925,11 @@ namespace annotate{
             }
             candidate_reads.push_back(cr);
         };
-        
-        fusion_manager fm;
-        for( auto &cand : candidate_reads){
-            fm.add_read(cand, gene_annot, transcript_exon_counts);
-            //fm.add_read(cand, gene_annot, last_exons, read_directions);
-        }
+       */ 
+        fusion_manager fm{candidates, gene_annot, transcript_exon_counts};
+//        for( auto &cand : candidate_reads){
+//            fm.add_read(cand, gene_annot, transcript_exon_counts);
+//        }
         
         annotate_duplications_and_overlaps(fm, gene_annot, duplication_path);
         
