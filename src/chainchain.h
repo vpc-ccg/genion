@@ -1,7 +1,6 @@
 #ifndef CHAIN_CHAIN
 #define CHAIN_CHAIN
 #include <iostream>
-#include <algorithm>
 #include <vector>
 
 #include "paf.h"

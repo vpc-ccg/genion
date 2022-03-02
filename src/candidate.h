@@ -1,11 +1,9 @@
 #ifndef CANDIDATE_HEADER
 #define CANDIDATE_HEADER
-#include <algorithm>
 #include "paf.h"
 #include <unordered_set>
 #include <vector>
 #include "chainchain.h"
-#include <algorithm>
 
 class Candidate{
     public:

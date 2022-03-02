@@ -12,8 +12,6 @@
 #include "candidate.h"
 #include "chainchain.h"
 #include "locus.h"
-
-#include <algorithm>
 #include <IITree.h>
 
 
