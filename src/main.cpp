@@ -30,7 +30,7 @@
 #include "gtf.h"
 
 #ifndef GENION_VERSION
-#define GENION_VERSION "1.0.1"
+#define GENION_VERSION "1.1.0"
 #endif
 
 using namespace std;
@@ -283,7 +283,8 @@ int fusion_run(int argc, char **argv){
         ("g,gpaf", "Long read whole genom e alignment paf path",cxxopts::value<std::string>())
         ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
         ("s,transcriptome-self-align", "Self align tsv",cxxopts::value<std::string>())
-        ("o,output", "Output prefix for an existing path", cxxopts::value<std::string>())
+        ("o,output", "Output path for an existing path", cxxopts::value<std::string>())
+        ("log", "logfile path (default: output_path + .log)", cxxopts::value<std::string>())
         ("min-support", "Minimum read support for fusion calls", cxxopts::value<size_t>()->default_value("3"))
         ("max-rt-distance", "Maximum distance between genes for read-through events", cxxopts::value<int>()->default_value("500000"))
         ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))
@@ -320,8 +321,15 @@ int fusion_run(int argc, char **argv){
         exit(-1);
     }
 
-    string output_prefix(opt["output"].as<std::string>());
+    string output_path(opt["output"].as<std::string>());
 
+    string log_path;
+    if(opt["log"].count() > 0){
+        log_path = opt["log"].as<string>();
+    }
+    else{
+        log_path = opt["output"].as<string>() + ".log";
+    }
     std::string gtf_path = opt["gtf"].as<std::string>();
     auto exon_forest = build_exon_forest(gtf_path);
     ChainFilterMinSegment chain_filter(exon_forest,50);
@@ -447,7 +455,8 @@ int fusion_run(int argc, char **argv){
     }
 
     annotate::annotate_calls_direct(
-            output_prefix,
+            output_path,
+            log_path,
             opt["gtf"].as<std::string>(),
             opt["duplications"].as<std::string>(),
             cand_vec,

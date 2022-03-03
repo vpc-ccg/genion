@@ -26,15 +26,19 @@
 
 #include <iostream>
 
+#include <cassert>
 
+using std::string;
+using std::ostream;
+using std::vector;
 
 template< class B>
-inline void print_tsv(std::ostream &ost, B b){
+inline void print_tsv(ostream &ost, B b){
     ost << b << "\n";
 }
 
 template <class B, class... A>
-inline void print_tsv(std::ostream &ost, B b, A... a){
+inline void print_tsv(ostream &ost, B b, A... a){
     ost << b << "\t";
     print_tsv(ost, a...);
 }
@@ -44,7 +48,7 @@ namespace annotate{
 
 
 
-    std::ostream& operator<<(std::ostream& os, const locus &lc){
+    ostream& operator<<(ostream& os, const locus &lc){
         os << lc.chr << "\t" << lc.position;
         return os;
     }
@@ -56,15 +60,15 @@ namespace annotate{
             options->add_options()
 
 
-                ("i,input", "Output path of Genion filter stage", cxxopts::value<std::string>())
-                ("o,output", "Output path of Genion annotation stage", cxxopts::value<std::string>())
+                ("i,input", "Output path of Genion filter stage", cxxopts::value<string>())
+                ("o,output", "Output path of Genion annotation stage", cxxopts::value<string>())
                 ("s,minsupport", "min support to flag PASS", cxxopts::value<size_t>()->default_value("3"))
                 ("maxrtfin", "maximum allowed fin for a read-through event, "
                                     "if larger event will be treated as an SV", cxxopts::value<double>()->default_value("0.5"))
                 ("maxrtdistance", "maximum allowed distance for a read-through event, "
                                     "if larger event will be treated as an SV", cxxopts::value<long>()->default_value("600000"))
-                ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<std::string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
-                ("r,reference", "Reference path used in filter stage",cxxopts::value<std::string>())
+                ("d,duplications", "genomicSuperDups.txt, unzipped",cxxopts::value<string>())//can be found at http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/genomicSuperDups.txt.gz
+                ("r,reference", "Reference path used in filter stage",cxxopts::value<string>())
                 ("c,keep_non_coding", "Keep non coding genes", cxxopts::value<bool>()->default_value("false"))
                 ("h,help", "Prints help")
                 ;
@@ -107,27 +111,27 @@ namespace annotate{
     }
 
 //585     chr1    10000   87112   chr15:101906152 0       -       chr15   101906152       101981189       75037   11764   1000    N/A     N/A     N/A     N/A     align_both/0009/both0046049     77880   71      3611  74269   73743   526     331     195     0.992918        0.991969        0.00711601      0.00711937 
-    IITree<locus, std::tuple<std::string, int, int, double> > read_duplication_annotation(std::string path){
-        IITree<locus, std::tuple<std::string, int, int, double> > duplications;
+    IITree<locus, std::tuple<string, int, int, double> > read_duplication_annotation(string path){
+        IITree<locus, std::tuple<string, int, int, double> > duplications;
 
         std::ifstream dup_file(path);
         if(!dup_file.is_open()){
             std::cerr << "[ERROR] Cannot open file:" << path << std::endl;
             exit(-1);
         } 
-        std::string line;
+        string line;
         
-        std::string ch;
+        string ch;
         int start;
         int end;
 
-        std::string m_ch;
+        string m_ch;
         int m_start;
         int m_end;
 
         double frac_match;
         while(std::getline(dup_file, line)){
-            std::vector<std::string> fields = rsplit(line,"\t");
+            vector<string> fields = rsplit(line,"\t");
             ch = fields[1];
             start = stoi(fields[2]);
             end = stoi(fields[3]);
@@ -138,10 +142,10 @@ namespace annotate{
 
             frac_match = stof(fields[26]);
 
-            if(ch.find("chr")!= std::string::npos){
+            if(ch.find("chr")!= string::npos){
                 ch = ch.substr(3);
             }
-            if(m_ch.find("chr")!= std::string::npos){
+            if(m_ch.find("chr")!= string::npos){
                 m_ch = m_ch.substr(3);
             }
             locus s_s(ch,start);
@@ -157,12 +161,12 @@ namespace annotate{
     class interval{
 
         public:
-        std::string chr;
+        string chr;
         int start;
         int end;
         bool reverse_strand;
 
-        interval( const std::string &chr, int start, int end, bool reverse_strand) :
+        interval( const string &chr, int start, int end, bool reverse_strand) :
             chr(chr),
             start(start),
             end(end),
@@ -185,6 +189,23 @@ namespace annotate{
             }
             return end > other.start;
         }
+
+        bool operator==(const interval &other) const{
+            return chr == other.chr && start == other.start && end == other.end && reverse_strand == other.reverse_strand;
+        }
+
+        void extend(const interval& other){
+
+            if( *this == interval{}){
+                *this = other;
+            }
+            else{
+                assert(chr == other.chr);
+                assert(reverse_strand == other.reverse_strand);
+                start = std::min(start, other.start);
+                end   = std::min(end, other.end);
+            }
+        }
     };
 //chr1    HAVANA          gene    65419   71585   .       +       .       gene_id "ENSG00000186092.6"; gene_type "protein_coding"; gene_name "OR4F5"; level 2; hgnc_id "HGNC:14825"; havana_gene "OTTHUMG00000001094.4";
 //   1    ensembl_havana  gene    65419   71585   .       +       .       gene_id "ENSG00000186092"; gene_version "6"; gene_name "OR4F5"; gene_source "ensembl_havana"; gene_biotype "protein_coding";`
@@ -195,21 +216,21 @@ namespace annotate{
         interval range;
 
         bool reverse_strand;
-        std::string gene_id;
-        std::string gene_name;
-        std::string gene_type;
+        string gene_id;
+        string gene_name;
+        string gene_type;
         bool coding;
 
-        gene( interval range, const std::string &gene_id, const std::string &gene_name, 
-                const std::string &gene_type) 
+        gene( interval range, const string &gene_id, const string &gene_name, 
+                const string &gene_type) 
             : range(range),
               gene_id(gene_id),
               gene_name(gene_name),
               gene_type(gene_type),
               coding(gene_type=="protein_coding")
         {}
-        gene( interval range, const std::string &gene_id, const std::string &gene_name, 
-                const std::string &gene_type, bool coding) 
+        gene( interval range, const string &gene_id, const string &gene_name, 
+                const string &gene_type, bool coding) 
             : range(range),
               gene_id(gene_id),
               gene_name(gene_name),
@@ -222,11 +243,11 @@ namespace annotate{
     class exon{
         public:
         interval range;
-        std::string gene_id;  
-        std::string transcript_id;  
+        string gene_id;  
+        string transcript_id;  
         int exon_no;
 
-        exon( interval range, const std::string &gene_id, const std::string &transcript_id, int exon_no) :
+        exon( interval range, const string &gene_id, const string &transcript_id, int exon_no) :
             range(range),
             gene_id(gene_id),
             transcript_id(transcript_id),
@@ -236,24 +257,40 @@ namespace annotate{
     class candidate_read{
         public:
 
-        std::string read_id;
-        std::vector<std::pair<interval, exon> > blocks;
-        candidate_read(const std::string &rid) : read_id(rid) {}
+        string read_id;
+        vector<std::pair<interval, exon> > blocks;
+        candidate_read(const string &rid) : read_id(rid) {}
         candidate_read(const Candidate &cand) : read_id(cand.id){
             for(const auto &p: cand.canonical){
                 add_block(p);
             }
         }
-        std::vector<int> first_exons;
+        vector<int> first_exons;
 
-        std::map<std::string, locus> get_breakpoints(bool direction) const {
+        auto ranges() const -> std::map<string, interval> {
+            std::map<string, interval> gene_ranges;
+            for(const auto &ie : blocks){
+                const string &gene_id = ie.second.gene_id;
+                gene_ranges[gene_id].extend(ie.first);
+            }
+            return gene_ranges;
+        }
+        void log(std::ofstream &ost) const{
+            ost << read_id;
+            for(const auto &p: ranges()){
+                ost << "\t"<< p.first << "\t" << p.second.chr << ":" << p.second.start << "-" << p.second.end;
+            }
+            ost << "\n";
+        }
+
+        std::map<string, locus> get_breakpoints(bool direction) const {
             
-            std::map<std::string, locus> bps;
+            std::map<string, locus> bps;
             
-            std::string first_gene = blocks[0].second.gene_id;
+            string first_gene = blocks[0].second.gene_id;
             for(auto &block : blocks){
 
-                std::string gene_id = block.second.gene_id;
+                string gene_id = block.second.gene_id;
                 bool is_first = (gene_id == first_gene) == direction;
 
                 bool reverse = block.first.reverse_strand;
@@ -302,20 +339,20 @@ namespace annotate{
 
             return bps;
         }
-        void add_block(const std::string &line){
-            std::vector<std::string> fields = rsplit(line, "\t");
+        void add_block(const string &line){
+            vector<string> fields = rsplit(line, "\t");
 
             int start = stoi(fields[1]);
             int end   = stoi(fields[2]);
-            std::string chr = fields[3];
+            string chr = fields[3];
             bool reverse_strand = fields[6] == "1";
 
             int ex_start = stoi(fields[8]);
             int ex_end   = stoi(fields[9]);
             
             bool ex_rev_strand = fields[10] == "1";
-            std::string gene_id  = fields[11];
-            std::string transcript_id = fields[12];
+            string gene_id  = fields[11];
+            string transcript_id = fields[12];
             int exon_no               = stoi(fields[13]);
             if(exon_no == 1){
                 first_exons.push_back(blocks.size());
@@ -343,33 +380,107 @@ namespace annotate{
         }
     };
 
+
+    auto median(const vector<int> &values) -> double{
+        int i = values.size() / 2;
+        if(values.size() % 2 == 0){
+            return values[i] / 2.0 + values[i + 1] / 2.0;
+        }
+        else{
+            return values[i + 1];
+        }
+    }
+
     class candidate_fusion{
 
         public:
-        std::map<std::string,double> non_covered_sum_ratio;
+        std::map<string,double> non_covered_sum_ratio;
 
-        std::string name;
-        std::string id;
-        std::vector<candidate_read> forward;
-        std::vector<candidate_read> backward;
+        string name;
+        string id;
+        vector<candidate_read> forward;
+        vector<candidate_read> backward;
 
-        std::vector<candidate_read> no_first;
-        std::vector<candidate_read> multi_first;
+        vector<candidate_read> no_first;
+        vector<candidate_read> multi_first;
 
-        std::vector<std::pair<interval, interval> > duplications;
-        std::vector<std::pair<gene, gene> > gene_overlaps;
+        vector<std::pair<interval, interval> > duplications;
+        vector<std::pair<gene, gene> > gene_overlaps;
         int invalid {0};
+
+
+        void log(std::ofstream &ost) const {
+
+            for(const candidate_read &cr : forward){
+                cr.log(ost);
+            }
+            for(const candidate_read &cr : backward){
+                cr.log(ost);
+            }
+            for(const candidate_read &cr : no_first){
+                cr.log(ost);
+            }
+            for(const candidate_read &cr : multi_first){
+                cr.log(ost);
+            }
+        }
+
+        auto median_range() const -> vector<std::tuple<string, int, int>>{
+            vector<std::tuple<string, int, int>> median_values;
+            std::map<string, vector< int>> begins;
+            std::map<string, vector< int>> ends;
+            std::map<string, string> chrs;
+            for(const candidate_read &cr : forward){
+                for( const auto &pp: cr.ranges()){
+                    begins[pp.first].push_back(pp.second.start);
+                    ends[pp.first].push_back(pp.second.end);
+                    chrs[pp.first] = pp.second.chr;
+                }
+            }
+            for(const candidate_read &cr : backward){
+                for( const auto &pp: cr.ranges()){
+                    begins[pp.first].push_back(pp.second.start);
+                    ends[pp.first].push_back(pp.second.end);
+                    chrs[pp.first] = pp.second.chr;
+                }
+            }
+            for(const candidate_read &cr : no_first){
+                for( const auto &pp: cr.ranges()){
+                    begins[pp.first].push_back(pp.second.start);
+                    ends[pp.first].push_back(pp.second.end);
+                    chrs[pp.first] = pp.second.chr;
+                }
+            }
+            for(const candidate_read &cr : multi_first){
+                for( const auto &pp: cr.ranges()){
+                    begins[pp.first].push_back(pp.second.start);
+                    ends[pp.first].push_back(pp.second.end);
+                    chrs[pp.first] = pp.second.chr;
+                }
+            }
+
+            for( auto &pp: begins){
+                const auto &gn = pp.first;
+                auto &bvec = pp.second;
+                auto &evec = ends[gn];
+                const string &chr = chrs[gn];
+                sort(bvec.begin(), bvec.end());
+                sort(evec.begin(), evec.end());
+                median_values.emplace_back(chr, median(bvec), median(evec));
+            }
+            return median_values;
+        }
         size_t total_count() const {
             return forward.size() 
                 + backward.size() 
                 + multi_first.size() 
                 + no_first.size();
         }
-        std::map<std::string, interval> fusion_gene_intervals(){
-            std::map<std::string, std::string> chrs;
-            std::map<std::string, int> mins; 
-            std::map<std::string, int> maxs;
-            std::map<std::string, bool> rev;
+        std::map<string, interval> fusion_gene_intervals(){
+            std::map<string, string> chrs;
+            std::map<string, int> mins; 
+            std::map<string, int> maxs;
+            std::map<string, bool> rev;
             for(const auto &v : {forward, backward, no_first, multi_first}){
                 for(const auto &c : v){
                     for(const auto &i_e : c.blocks){
@@ -388,12 +499,12 @@ namespace annotate{
                     }
                 }
             } 
-            std::map<std::string, interval> ivals;
+            std::map<string, interval> ivals;
             for(const auto &k_v : mins){
-                const std::string &key = k_v.first;
+                const string &key = k_v.first;
                 const int &mn = k_v.second;
                 const int &mx = maxs[key];
-                const std::string &chr = chrs[key];
+                const string &chr = chrs[key];
                 bool rs = rev[key];
                 ivals.emplace(key, interval{chr,mn,mx,rs});
             }
@@ -404,16 +515,16 @@ namespace annotate{
         candidate_fusion() {}
     };
 
-    auto dash_fold(const std::string &a, const std::string &b){
+    auto dash_fold(const string &a, const string &b){
         return std::move(a) + "::" + b;
     }
     class fusion_manager{
         public:
-        std::map<std::string, candidate_fusion> fusions;
-        std::map<std::string, int> gene_counts;
+        std::map<string, candidate_fusion> fusions;
+        std::map<string, int> gene_counts;
 
-        fusion_manager( const std::vector<Candidate> &candidates, const std::unordered_map<std::string, gene> &gene_annot,
-            const std::unordered_map<std::string, int> &exon_counts){
+        fusion_manager( const vector<Candidate> &candidates, const std::unordered_map<string, gene> &gene_annot,
+            const std::unordered_map<string, int> &exon_counts){
             for( auto &cand : candidates){
 
                 add_read(candidate_read{cand}, gene_annot, exon_counts);
@@ -421,14 +532,14 @@ namespace annotate{
 
         }
         fusion_manager() {}
-        void add_read(const candidate_read &read, const std::unordered_map<std::string, gene> &gene_annot,
-            const std::unordered_map<std::string, int> &exon_counts){
+        void add_read(const candidate_read &read, const std::unordered_map<string, gene> &gene_annot,
+            const std::unordered_map<string, int> &exon_counts){
 
 
-            std::set<std::string> gene_ids;
-            std::map<std::string,int> gene_order;   //use
-            std::map<std::string, std::unordered_set<std::string>> transcript_ids;
-            std::map<std::string, double> approximate_coverage;
+            std::set<string> gene_ids;
+            std::map<string,int> gene_order;   //use
+            std::map<string, std::unordered_set<string>> transcript_ids;
+            std::map<string, double> approximate_coverage;
             int and_all_blocks  = 1;
             int not_and_all_blocks = 1;
             int index = 0;
@@ -458,32 +569,32 @@ namespace annotate{
             }
             
 
-            std::string fusion_name = "";
-            for(const std::string &id : gene_ids){
+            string fusion_name = "";
+            for(const string &id : gene_ids){
                 fusion_name += gene_annot.find(id)->second.gene_name + "::";
             }
 
             fusion_name.pop_back();
             fusion_name.pop_back();
 
-            std::string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
+            string fusion_id = std::accumulate( std::next(std::begin(gene_ids)), std::end(gene_ids), *(std::begin(gene_ids)), dash_fold);
 
-            for( std::string gid : gene_ids){
+            for( string gid : gene_ids){
                 gene_counts[gid]+=1;
             }
             auto &cand = fusions[fusion_id];
             if( !(and_all_blocks || not_and_all_blocks)){
                 //Invalid Strand configuration
                 //std::cerr << read.read_id << "\n";
-                //for(const std::string &id : gene_ids){
+                //for(const string &id : gene_ids){
                 //    std::cerr << id<< "::";
                // }
                 cand.invalid +=1;
             }
 
-            for( std::string gid : gene_ids){
+            for( string gid : gene_ids){
                 int max_exon_count = 1;
-                for(std::string tid : transcript_ids[gid]){
+                for(string tid : transcript_ids[gid]){
                     int exon_count = exon_counts.at(tid);
 
                     if( max_exon_count < exon_count){
@@ -515,40 +626,40 @@ namespace annotate{
         }
     };
 
-    bool make_gene(const std::string &line, gene &g){
-        std::vector<std::string> tabs = rsplit(line, "\t");
-        std::string ch(tabs[0]);
-        if(ch.find("chr")!=std::string::npos){
+    bool make_gene(const string &line, gene &g){
+        vector<string> tabs = rsplit(line, "\t");
+        string ch(tabs[0]);
+        if(ch.find("chr")!=string::npos){
             ch = ch.substr(3);
         }
         interval range( tabs[0], stoi(tabs[3]), stoi(tabs[4]), tabs[6]=="-");
         if(tabs[2] != "gene"){
             return false;
         }
-        std::vector<std::string> fields = rsplit(tabs[8], ";");
-        std::string gene_id, gene_name, gene_type;
+        vector<string> fields = rsplit(tabs[8], ";");
+        string gene_id, gene_name, gene_type;
 
         for(auto iter = fields.begin(); iter != fields.end(); iter++){
 
-            if( iter->find("gene_id") != std::string::npos){
-                std::string _id = iter->substr(iter->find("d ")+3);
+            if( iter->find("gene_id") != string::npos){
+                string _id = iter->substr(iter->find("d ")+3);
                 _id.pop_back();
-                if( _id.find(".") != std::string::npos){
+                if( _id.find(".") != string::npos){
                     size_t dot_pos = _id.find(".");
                     _id = _id.substr(0,dot_pos);
                 }
                 gene_id = _id;
             } 
 
-            if( iter->find("gene_name") != std::string::npos){
-                std::string _id = iter->substr(iter->find("e ")+3);
+            if( iter->find("gene_name") != string::npos){
+                string _id = iter->substr(iter->find("e ")+3);
                 _id.pop_back();
                 gene_name = _id;
             }
-            if( iter->find("gene_biotype") != std::string::npos ||
-                iter->find("gene_type") != std::string::npos 
+            if( iter->find("gene_biotype") != string::npos ||
+                iter->find("gene_type") != string::npos 
               ){
-                std::string _id = iter->substr(iter->find("e ")+3);
+                string _id = iter->substr(iter->find("e ")+3);
                 _id.pop_back();
                 gene_type = _id;
             }
@@ -559,7 +670,7 @@ namespace annotate{
     }
 
 // umap of transcript to last exon id
-    std::unordered_map<std::string, int> read_last_exons(std::string gtf_path){
+    std::unordered_map<string, int> read_last_exons(string gtf_path){
         std::ifstream gtf_file(gtf_path);
         if(!gtf_file.is_open()){
             std::cerr << "[ERROR] Cannot open file:" << gtf_path << std::endl;
@@ -567,36 +678,36 @@ namespace annotate{
         } 
 
 
-        std::unordered_map<std::string, int> int_map;
-        std::string line;
+        std::unordered_map<string, int> int_map;
+        string line;
         while(std::getline(gtf_file, line)){
             if(line[0]=='#'){ //Comment
                 continue;
             }
-            std::vector<std::string> tabs = rsplit(line, "\t");
+            vector<string> tabs = rsplit(line, "\t");
             if(tabs[2] != "exon"){
                 continue;
             }
 
-            std::vector<std::string> fields = rsplit(tabs[8], ";");
-            std::string transcript_id = "-1";
+            vector<string> fields = rsplit(tabs[8], ";");
+            string transcript_id = "-1";
             int exon_number = -1;
             for(auto iter = fields.begin(); iter != fields.end(); iter++){
 
-                if( iter->find("transcript_id") != std::string::npos){
-                    std::string _id = iter->substr(iter->find("d ")+3);
+                if( iter->find("transcript_id") != string::npos){
+                    string _id = iter->substr(iter->find("d ")+3);
                     _id.pop_back();
-                    if( _id.find(".") != std::string::npos){
+                    if( _id.find(".") != string::npos){
                         size_t dot_pos = _id.find(".");
                         _id = _id.substr(0,dot_pos);
                     }
                     transcript_id = _id;
 
                 }
-                if( iter->find("exon_number") != std::string::npos){
-                    std::string _id = iter->substr(iter->find("r ")+3);
+                if( iter->find("exon_number") != string::npos){
+                    string _id = iter->substr(iter->find("r ")+3);
                     _id.pop_back();
-                    if( _id.find(".") != std::string::npos){
+                    if( _id.find(".") != string::npos){
                         size_t dot_pos = _id.find(".");
                         _id = _id.substr(0,dot_pos);
                     }
@@ -617,8 +728,8 @@ namespace annotate{
     }
 
     template<class K, class V>
-    std::vector<std::pair<K, K>> get_key_pairs( const std::map<K,V> &map){
-        std::vector<std::pair<K,K>> pairs;
+    vector<std::pair<K, K>> get_key_pairs( const std::map<K,V> &map){
+        vector<std::pair<K,K>> pairs;
         for(auto iter = std::begin(map); iter != std::end(map); ++iter){
             for(auto inner = std::next(iter); inner !=std::end(map); ++inner){
                 pairs.emplace_back(iter->first, inner->first);
@@ -627,38 +738,38 @@ namespace annotate{
         return pairs;
     }
 
-    std::unordered_map<std::string, int> read_transcript_exon_counts(std::string gtf_path){
+    std::unordered_map<string, int> read_transcript_exon_counts(string gtf_path){
         std::ifstream gtf_file(gtf_path);
         if(!gtf_file.is_open()){
             std::cerr << "[ERROR] Cannot open file:" << gtf_path << std::endl;
             exit(-1);
         } 
 
-        std::unordered_map<std::string, int> transcript_exon_counts;
-        std::string line;
+        std::unordered_map<string, int> transcript_exon_counts;
+        string line;
         while(std::getline(gtf_file, line)){
             if(line[0]=='#'){ //Comment
                 continue;
             }
 
-            std::vector<std::string> tabs = rsplit(line, "\t");
-            std::string ch(tabs[0]);
-            if(ch.find("chr")!=std::string::npos){
+            vector<string> tabs = rsplit(line, "\t");
+            string ch(tabs[0]);
+            if(ch.find("chr")!=string::npos){
                 ch = ch.substr(3);
             }
             interval range( tabs[0], stoi(tabs[3]), stoi(tabs[4]), tabs[6]=="-");
             if(tabs[2] != "exon"){
                 continue;
             }
-            std::vector<std::string> fields = rsplit(tabs[8], ";");
-            std::string transcript_id;
+            vector<string> fields = rsplit(tabs[8], ";");
+            string transcript_id;
             for(auto iter = fields.begin(); iter != fields.end(); iter++){
 
 
-                if( iter->find("transcript_id") != std::string::npos){
-                    std::string _id = iter->substr(iter->find("d ")+3);
+                if( iter->find("transcript_id") != string::npos){
+                    string _id = iter->substr(iter->find("d ")+3);
                     _id.pop_back();
-                    if( _id.find(".") != std::string::npos){
+                    if( _id.find(".") != string::npos){
                         size_t dot_pos = _id.find(".");
                         _id = _id.substr(0,dot_pos);
                     }
@@ -667,10 +778,10 @@ namespace annotate{
                     break;
                 } 
 /*  In case we have to handle duplicate exons.
-                if( iter->find("exon_number") != std::string::npos){
-                    std::string _id = iter->substr(iter->find("d ")+3);
+                if( iter->find("exon_number") != string::npos){
+                    string _id = iter->substr(iter->find("d ")+3);
                     _id.pop_back();
-                    if( _id.find(".") != std::string::npos){
+                    if( _id.find(".") != string::npos){
                         size_t dot_pos = _id.find(".");
                         _id = _id.substr(0,dot_pos);
                     }
@@ -683,15 +794,15 @@ namespace annotate{
         return transcript_exon_counts;
     }
 
-    std::unordered_map<std::string, gene> read_gene_annotation(std::string gtf_path){
+    std::unordered_map<string, gene> read_gene_annotation(string gtf_path){
         std::ifstream gtf_file(gtf_path);
         if(!gtf_file.is_open()){
             std::cerr << "[ERROR] Cannot open file:" << gtf_path << std::endl;
             exit(-1);
         } 
 
-        std::unordered_map<std::string, gene> valid_set;
-        std::string line;
+        std::unordered_map<string, gene> valid_set;
+        string line;
         while(std::getline(gtf_file, line)){
             if(line[0]=='#'){ //Comment
                 continue;
@@ -706,19 +817,19 @@ namespace annotate{
     }
 
     void annotate_duplications_and_overlaps(fusion_manager &fm,
-            const std::unordered_map<std::string, gene> &gene_annot,
-            const std::string &dup_path){
+            const std::unordered_map<string, gene> &gene_annot,
+            const string &dup_path){
 
-        IITree<locus, std::tuple<std::string, int, int, double> > duplications = read_duplication_annotation(dup_path);;
-        std::vector< size_t> overlaps;
+        IITree<locus, std::tuple<string, int, int, double> > duplications = read_duplication_annotation(dup_path);;
+        vector< size_t> overlaps;
         for( auto &cand : fm.fusions){
-            std::map<std::string, interval> ivals = cand.second.fusion_gene_intervals();
+            std::map<string, interval> ivals = cand.second.fusion_gene_intervals();
             auto key_pairs = get_key_pairs(ivals);
                 
             //Duplication annotation
             for(const auto &key_pair : key_pairs){
-                const std::string &f = key_pair.first;
-                const std::string &s = key_pair.second;
+                const string &f = key_pair.first;
+                const string &s = key_pair.second;
                 
                 const interval &i = (ivals.find(f))->second;
                 const auto loci = i.as_loci();
@@ -750,8 +861,8 @@ namespace annotate{
     }
 
 
-    std::pair<size_t,size_t> count_genes( const std::string &feature_table_path,
-            std::unordered_map<std::string, size_t> &count_table,
+    std::pair<size_t,size_t> count_genes( const string &feature_table_path,
+            std::unordered_map<string, size_t> &count_table,
             bool all = false){
         
           
@@ -761,17 +872,17 @@ namespace annotate{
         size_t total_normal_count = 0;
         size_t total_chimer_count = 0;
 
-        std::string line;
+        string line;
         while(std::getline(feature_file, line)){
-            std::vector<std::string> fields =  rsplit(line, "\t");
+            vector<string> fields =  rsplit(line, "\t");
             if(!all && stoi(fields[2]) !=0){ // Split Alignment
                 ++total_chimer_count;
                 continue;
             }
             ++total_normal_count;
             
-            std::string gene_id1 = fields[1].substr(0,15);
-            std::string gene_id2 = fields[1].substr(17);
+            string gene_id1 = fields[1].substr(0,15);
+            string gene_id2 = fields[1].substr(17);
             if(all){
                 count_table[gene_id1]+=1;
                 if(gene_id1 != gene_id2){
@@ -789,14 +900,14 @@ namespace annotate{
     }
 
 
-    std::unordered_map<std::string, SEQDIR>  read_read_directions(const std::string &path){
+    std::unordered_map<string, SEQDIR>  read_read_directions(const string &path){
         
-        std::unordered_map<std::string, SEQDIR> directions; 
+        std::unordered_map<string, SEQDIR> directions; 
         std::ifstream dir_file(path);
-        std::string line;
+        string line;
 
         while(std::getline(dir_file, line)){
-            std::vector<std::string> fields = rsplit(line,"\t");
+            vector<string> fields = rsplit(line,"\t");
             if(fields[1] =="NONE"){
                 directions[fields[0]] = SEQDIR::unknown;
                 continue;
@@ -834,7 +945,7 @@ namespace annotate{
         else{
             return false;
         }
-        //std::vector<std::pair<interval, exon> > blocks;
+        //vector<std::pair<interval, exon> > blocks;
     
         if( read->blocks.size() < 2){
             return false;
@@ -871,13 +982,13 @@ namespace annotate{
    
     double statistically_test_candidate(const candidate_fusion &fusion,
             double chimera_rate,
-            const std::unordered_map<std::string, size_t> &gene_counts
+            const std::unordered_map<string, size_t> &gene_counts
             ){
 
             
-        std::vector<std::string> genes = rsplit(fusion.id,"::");
-        std::vector<size_t> normal_counts;
-        for(const std::string &gene : genes){
+        vector<string> genes = rsplit(fusion.id,"::");
+        vector<size_t> normal_counts;
+        for(const string &gene : genes){
 
             auto count_ptr = gene_counts.find(gene);
             size_t count = 0;
@@ -900,11 +1011,12 @@ namespace annotate{
     }
 
     int annotate_calls_direct( 
-            const std::string &output_path,
-            const std::string &gtf_path,
-            const std::string &duplication_path,
-            const std::vector<Candidate> &candidates,
-            std::unordered_map<std::string, size_t> gene_counts,
+            const string &output_path,
+            const string &log_path,
+            const string &gtf_path,
+            const string &duplication_path,
+            const vector<Candidate> &candidates,
+            std::unordered_map<string, size_t> gene_counts,
             size_t min_support,
             int total_normal_count, int total_chimer_count,
             int maxrtdistance,      double maxrtfin,
@@ -912,12 +1024,12 @@ namespace annotate{
 
         bool full_debug_output = false;
 
-        std::unordered_map<std::string, gene> gene_annot = read_gene_annotation(gtf_path);
+        std::unordered_map<string, gene> gene_annot = read_gene_annotation(gtf_path);
         
-        std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
-        std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
+        std::unordered_map<string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
+        std::unordered_map<string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
         /*
-        std::vector<candidate_read> candidate_reads;
+        vector<candidate_read> candidate_reads;
         for( const Candidate &cand: candidates){
             candidate_read cr(cand.id);
             for(const auto &p: cand.canonical){
@@ -944,16 +1056,17 @@ namespace annotate{
         }
         auto hypothesis = multiple_test(pvalues, 0.05, pvalue_corrector::BENJAMINI_YEKUTIELI);
 
-    
+
 
         std::ofstream outfile( output_path );
+        std::ofstream logfile( log_path );
         std::ofstream outfile_fail( output_path + ".fail");
 
         auto pval_iter = pvalues.begin();
         auto corr_pval_iter = hypothesis.corr_pvals.begin();
         auto null_iter = hypothesis.null_rejected.begin();
         for( const auto &cand : fm.fusions){
-            std::string fusion_id = cand.first;
+            string fusion_id = cand.first;
             bool null_rejected = *null_iter;
             double pvalue = *pval_iter;
             double corr_pvalue = *corr_pval_iter;
@@ -964,11 +1077,11 @@ namespace annotate{
 
             int total_count_putative_full_length = cand.second.forward.size() 
                 + cand.second.backward.size();
-            std::vector<std::string> genes = rsplit(fusion_id,"::");
+            vector<string> genes = rsplit(fusion_id,"::");
 
             bool coding_flag = false;
             if( only_coding){
-                for( const std::string &g : genes){
+                for( const string &g : genes){
                     auto gptr = gene_annot.find(g);
                     if(gptr == gene_annot.end()){
                         std::cerr << "Gene " << g << " is not in annotation!\n";
@@ -981,10 +1094,10 @@ namespace annotate{
                 }
             }
             double gene_count_sum = 0;
-            std::string gene_count_string = "";
-            std::string idf_string = "";
+            string gene_count_string = "";
+            string idf_string = "";
             double total_idf = 0;
-            for(const std::string &gene : genes){
+            for(const string &gene : genes){
                 gene_count_sum += gene_counts[gene];
                 gene_count_string+= std::to_string(gene_counts[gene]) + ";";
                 idf_string+= std::to_string(fm.gene_counts[gene]-total_count) + ";";
@@ -1009,7 +1122,7 @@ namespace annotate{
             double forward_rt_ex  =  1.0 * fg_count / tcpflnz;
             double backward_rt_ex = 1.0 * lg_count / tcpflnz;
             double bad_strand_ratio = static_cast<double>(cand.second.invalid)/cand.second.total_count();
-            std::string pass_fail_code = "";
+            string pass_fail_code = "";
             if(coding_flag){
                 pass_fail_code += ":noncoding";
             }
@@ -1044,7 +1157,7 @@ namespace annotate{
             }
 
 /*
-            std::map<std::string, std::vector<locus>> breakpoints;
+            std::map<string, vector<locus>> breakpoints;
 
             bool is_forward = true;
             for(const auto &ff : {cand.second.forward, cand.second.backward, cand.second.no_first, cand.second.multi_first}){
@@ -1056,8 +1169,8 @@ namespace annotate{
                 is_forward = false;
             }
 
-            std::map<std::string, std::pair<double, double>> breakpoint_ranges;
-            std::map<std::string, std::string> chromosome_per_gene;
+            std::map<string, std::pair<double, double>> breakpoint_ranges;
+            std::map<string, string> chromosome_per_gene;
             for( const auto &bpp : breakpoints){
                 chromosome_per_gene[bpp.first] = bpp.second[0].chr;
                 breakpoint_ranges[bpp.first] = mean_and_std(bpp.second, [] (const locus &l) -> double {
@@ -1083,16 +1196,23 @@ namespace annotate{
                     << "\t" << static_cast<double>(cand.second.invalid)/cand.second.total_count() << "\n";
             }
             else{
-                if(pass_fail_code.find("PASS")!=std::string::npos){
+                if(pass_fail_code.find("PASS")!=string::npos){
 /*
-                    std::string pos_string;
-                    for( const std::string &g: genes){
+                    string pos_string;
+                    for( const string &g: genes){
                         auto rang = breakpoint_ranges.at(g);
-                        std::string ch = chromosome_per_gene.at(g);
+                        string ch = chromosome_per_gene.at(g);
                         pos_string += g + "(" + ch + ":" + std::to_string(rang.first) + "±" + std::to_string(rang.second) + ")";
                     }
+
                     */
-                    print_tsv(outfile, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, gene_count_string, pass_fail_code);// pos_string);
+                    std::stringstream range_stream;
+                    for(const auto &tup :cand.second.median_range()){
+                        range_stream << std::get<0>(tup) << ":" << std::get<1>(tup) << "-" << std::get<2>(tup) << ";";
+                    }
+                    print_tsv(outfile, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, gene_count_string, pass_fail_code, range_stream.str());// pos_string);
+
+                    cand.second.log(logfile);
                 }
                 else{
                     print_tsv(outfile_fail, fusion_id, cand.second.name, tfidf_score_full_len, fin_score, total_count, gene_count_string, pass_fail_code);
@@ -1111,27 +1231,27 @@ namespace annotate{
 
         size_t min_support = opt["minsupport"].as<size_t>();
 
-        std::string input_prefix(opt["input"].as<std::string>());
-        std::string reference_path(opt["reference"].as<std::string>());
+        string input_prefix(opt["input"].as<string>());
+        string reference_path(opt["reference"].as<string>());
 
         bool filter_non_coding = !opt["c"].as<bool>();
 
-        std::string gtf_path = reference_path + "/1.gtf";
-        std::unordered_map<std::string, gene> gene_annot = read_gene_annotation(gtf_path);
+        string gtf_path = reference_path + "/1.gtf";
+        std::unordered_map<string, gene> gene_annot = read_gene_annotation(gtf_path);
         
 
-        std::unordered_map<std::string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
-        std::unordered_map<std::string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
+        std::unordered_map<string, int> last_exons = read_last_exons(gtf_path);        //May be removed.
+        std::unordered_map<string, int> transcript_exon_counts = read_transcript_exon_counts(gtf_path);
 
-        std::string chains_path = input_prefix + "/chains.fixed.txt";
+        string chains_path = input_prefix + "/chains.fixed.txt";
 
-        std::vector<candidate_read> candidates;
+        vector<candidate_read> candidates;
 
         std::ifstream chain_file(chains_path);
         
-        std::string line;
+        string line;
         while(std::getline(chain_file, line)){
-            std::vector<std::string> fields =  rsplit(line, "\t");
+            vector<string> fields =  rsplit(line, "\t");
             int block_count = stoi(fields[1]);
             candidate_read cr(fields[0]);
             for(int i = 0; i < block_count; ++i){
@@ -1148,11 +1268,11 @@ namespace annotate{
             //fm.add_read(cand, gene_annot, last_exons, read_directions);
         }
         
-        annotate_duplications_and_overlaps(fm, gene_annot, opt["duplications"].as<std::string>());
+        annotate_duplications_and_overlaps(fm, gene_annot, opt["duplications"].as<string>());
         
-        std::string feature_table_path = input_prefix + "/feature_table.tsv";
+        string feature_table_path = input_prefix + "/feature_table.tsv";
 
-        std::unordered_map<std::string, size_t> gene_counts;
+        std::unordered_map<string, size_t> gene_counts;
         auto[total_normal_count,total_chimer_count] = count_genes(feature_table_path, gene_counts, false);
         double mean_chimera_ratio = static_cast<double>(total_chimer_count) / total_normal_count;
 
@@ -1178,11 +1298,11 @@ namespace annotate{
 
             int total_count_putative_full_length = cand.second.forward.size() 
                 + cand.second.backward.size();
-            std::vector<std::string> genes = rsplit(cand.first,"::");
+            vector<string> genes = rsplit(cand.first,"::");
 
             bool coding_flag = false;
             if( filter_non_coding){
-                for( const std::string &g : genes){
+                for( const string &g : genes){
                     auto gptr = gene_annot.find(g);
                     if(gptr == gene_annot.end()){
                         std::cerr << "Gene " << g << " is not in annotation!\n";
@@ -1195,10 +1315,10 @@ namespace annotate{
                 }
             }
             double gene_count_sum = 0;
-            std::string gene_count_string = "";
-            std::string idf_string = "";
+            string gene_count_string = "";
+            string idf_string = "";
             double total_idf = 0;
-            for(const std::string &gene : genes){
+            for(const string &gene : genes){
                 gene_count_sum += gene_counts[gene];
                 gene_count_string+= std::to_string(gene_counts[gene]) + ";";
                 idf_string+= std::to_string(fm.gene_counts[gene]-total_count) + ";";
@@ -1223,7 +1343,7 @@ namespace annotate{
             double forward_rt_ex  =  1.0 * fg_count / tcpflnz;
             double backward_rt_ex = 1.0 * lg_count / tcpflnz;
             double bad_strand_ratio = static_cast<double>(cand.second.invalid)/cand.second.total_count();
-            std::string pass_fail_code = "";
+            string pass_fail_code = "";
             if(coding_flag){
                 pass_fail_code += ":noncoding";
             }
@@ -1275,14 +1395,14 @@ namespace annotate{
 
         }
        
-        std::string bp_file_path = opt["output"].as<std::string>() + "/breakpoints.tsv";
+        string bp_file_path = opt["output"].as<string>() + "/breakpoints.tsv";
 
         std::ofstream bp_file(bp_file_path);
 
 
         for( const auto &cand : fm.fusions){
-            std::string fusion_id = cand.first;
-            std::map<std::string, std::vector<locus>> breakpoints;
+            string fusion_id = cand.first;
+            std::map<string, vector<locus>> breakpoints;
 
             bool is_forward = true;
             for(const auto &ff : {cand.second.forward, cand.second.backward}){//, cand.second.no_first, cand.second.multi_first}){

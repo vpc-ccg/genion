@@ -10,6 +10,7 @@ namespace annotate{
     int annotate_calls(int argc, char **argv);
     int annotate_calls_direct(
             const std::string &output_path,
+            const std::string &log_path,
             const std::string &reference_path,
             const std::string &duplications,
             const std::vector<Candidate> &candidates,

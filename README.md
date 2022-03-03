@@ -86,8 +86,10 @@ cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}
        *  FiN-score: Number of supporting A::B fusion reads divided by sum of number of normal A reads and B normal reads (normal being reads not supporting any gene fusions)
        *  normal-counts: ';' separated list of non-chimeric read counts of the member genes.
        *  pass-fail-code: PASS:GF for gene fusions, PASS:RT for readthroughs, FAIL::reason::... for filtered candidates.
+       *  ranges: semicolon separated set of (median) genomic intervals showing which part of the member genes are expressed (sorted in the same order of gene ids)
 * [output].fail: Contains called filtered fusion candidates in the same column format.
-
+* [output].log: Contains genomic positions of the supporting reads formatted as:
+    * `read-id gene1-id gene1-range gene2-id gene2-range`
 
 # A Small Example 
 
