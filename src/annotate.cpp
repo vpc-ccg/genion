@@ -194,17 +194,25 @@ namespace annotate{
             return chr == other.chr && start == other.start && end == other.end && reverse_strand == other.reverse_strand;
         }
 
-        void extend(const interval& other){
+        bool extend(const interval& other){
 
             if( *this == interval{}){
                 *this = other;
             }
             else{
                 assert(chr == other.chr);
-                assert(reverse_strand == other.reverse_strand);
+                
+                if(reverse_strand != other.reverse_strand){
+                    return false;        
+                }
                 start = std::min(start, other.start);
                 end   = std::min(end, other.end);
             }
+            return true;
+        }
+        friend ostream& operator<<(ostream& os, const interval &lc){
+            os  << lc.chr << ":" << lc.start << "-" << lc.end << (lc.reverse_strand?"-":"+");
+            return os;
         }
     };
 //chr1    HAVANA          gene    65419   71585   .       +       .       gene_id "ENSG00000186092.6"; gene_type "protein_coding"; gene_name "OR4F5"; level 2; hgnc_id "HGNC:14825"; havana_gene "OTTHUMG00000001094.4";
@@ -252,6 +260,10 @@ namespace annotate{
             gene_id(gene_id),
             transcript_id(transcript_id),
             exon_no(exon_no) {}
+        friend ostream& operator<<(ostream& os, const exon &lc){
+            os <<  lc.gene_id << "\t"  << lc.transcript_id <<"\t"<< lc.exon_no <<"\t" << lc.range;
+            return os;
+        }
     };
 
     class candidate_read{
