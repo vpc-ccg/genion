@@ -81,7 +81,7 @@ cat [cdna.selfalign.paf] | cut -f1,6 | sed 's/_/\t/g' | awk 'BEGIN{OFS=\"\\t\";}
 
 ### Output
 * [output]: Contains called gene fusions and readthrough. It is a tab separated sheet with the following columns.
-    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads normal-counts    pass-fail-code`
+    *  `gene1.id::gene2.id gene1.name::gene2.name  ffigf-score   FiN-score supporting-reads normal-counts    pass-fail-code ranges`
        *  ffigf-score of fusion A::B : Number of supporting A::B fusion reads divided by number of fusion reads mapping to gene A or gene B but not both.
        *  FiN-score: Number of supporting A::B fusion reads divided by sum of number of normal A reads and B normal reads (normal being reads not supporting any gene fusions)
        *  normal-counts: ';' separated list of non-chimeric read counts of the member genes.
