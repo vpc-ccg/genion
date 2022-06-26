@@ -287,7 +287,9 @@ int fusion_run(int argc, char **argv){
         ("log", "logfile path (default: output_path + .log)", cxxopts::value<std::string>())
         ("min-support", "Minimum read support for fusion calls", cxxopts::value<size_t>()->default_value("3"))
         ("max-rt-distance", "Maximum distance between genes for read-through events", cxxopts::value<int>()->default_value("500000"))
-        ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))
+
+        ("max-rt-fin", "Maximum value of chimeric-count / normal-count for read-through events", cxxopts::value<double>()->default_value("0.2"))//"max-base-percent-in-exon
+        ("max-base-percent-in-exon", "Maximum ratio of a base type (AGTC) in an potential fusion exon (This is used for low complexity filtering)", cxxopts::value<double>()->default_value("0.65"))
         ("non-coding", "Allow non-coding genes and transcripts while calling gene fusions", cxxopts::value<bool>()->default_value("false"))
         ("h,help", "Prints help")
         ("v,version", "Prints version")
@@ -410,7 +412,7 @@ int fusion_run(int argc, char **argv){
 
 
     vector<Candidate> cand_vec;
-    double max_percent = 0.65;
+    double max_percent = opt["max-base-percent-in-exon"].as<double>();
     if(opt["input"].count() > 0 ){
         string fastq_filename {opt["input"].as<string>() };
         
@@ -450,6 +452,9 @@ int fusion_run(int argc, char **argv){
             if( new_canonical.size() > 0 && new_genes.size() > 1){
                 iter->second.canonical = new_canonical;
                 cand_vec.push_back(iter->second);
+            }
+            else {
+                cnts[2]--;//Candidate is removed because of the low complexity
             }
         }
     }
