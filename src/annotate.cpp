@@ -1010,8 +1010,10 @@ namespace annotate{
             normal_counts.push_back(count);
         }
 
-        size_t total_normal_count = std::accumulate(normal_counts.begin(), normal_counts.end(), 0L);
-        double average_normal_count = static_cast<double>(total_normal_count) / normal_counts.size();
+//        size_t total_normal_count = std::accumulate(normal_counts.begin(), normal_counts.end(), 0L);
+//        double average_normal_count = static_cast<double>(total_normal_count) / normal_counts.size();
+        size_t mult_count = std::accumulate(normal_counts.begin(), normal_counts.end(), 0L, std::multiplies<size_t>());
+        double average_normal_count = std::pow(static_cast<double>(mult_count), 1.0/normal_counts.size());
 
         int x = fusion.total_count();
         int n = x + average_normal_count;
