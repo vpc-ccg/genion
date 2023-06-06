@@ -1,8 +1,15 @@
 
+
+
 CXX     ?= g++
 OPT		?= -O2
 LDFLAGS   +=  -lz 
 CXXFLAGS  = ${OPT}  -std=c++17   -Wall -Wextra -Ilib/cgranges -Ilib/cxxopts -Ilib/fmtlib -Ilib/stattest 
+
+GIT_VERSION:=$(shell git describe --dirty --always --tags)
+ifneq ($(GIT_VERSION),"")
+	CXXFLAGS += -DGENION_VERSION=\"${GIT_VERSION}\"
+endif
 ifdef CONDA_PREFIX
 	CXXFLAGS += -I${CONDA_PREFIX}/include
 	LDFLAGS += -L${CONDA_PREFIX}/lib
