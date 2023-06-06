@@ -30,7 +30,7 @@
 #include "gtf.h"
 
 #ifndef GENION_VERSION
-#define GENION_VERSION "1.1.0"
+#define GENION_VERSION "1.2.3"
 #endif
 
 using namespace std;
